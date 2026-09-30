@@ -7,7 +7,7 @@ export const FRAME_SIDE = 0.06;
 export const FRAME_BOTTOM = 0.2;
 export const frameHeight = (w: number, ar: number) => w * (FRAME_SIDE + (1 - 2 * FRAME_SIDE) / ar + FRAME_BOTTOM);
 
-function hash(str: string): number {
+export function hash(str: string): number {
   let h = 2166136261;
   for (let i = 0; i < str.length; i++) {
     h ^= str.charCodeAt(i);
