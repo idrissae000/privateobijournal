@@ -51,9 +51,8 @@ export function EntryForm({
     });
   }
 
-  async function photoDump(files: FileList) {
+  async function photoDump(list: File[]) {
     setError(null);
-    const list = [...files];
     const done: { key: string; ar: number }[] = [];
     let failed = 0;
     let next = 0;
@@ -147,7 +146,12 @@ export function EntryForm({
         </button>
         <input
           ref={dump} type="file" accept="image/*" multiple hidden
-          onChange={(e) => { const f = e.target.files; e.target.value = ""; if (f?.length) void photoDump(f); }}
+          onChange={(e) => {
+            // copy first: resetting the input empties the live FileList
+            const picked = [...(e.target.files ?? [])];
+            e.target.value = "";
+            if (picked.length) void photoDump(picked);
+          }}
         />
         <div className="flex items-center gap-2">
           <div className="polaroid h-16 w-16 !p-1">

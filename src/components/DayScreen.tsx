@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { EntryForm } from "@/components/EntryForm";
+import { EntryPanel } from "@/components/EntryPanel";
 import { AddInfluenceButton } from "@/components/AddInfluence";
 import { Collage } from "@/components/Collage";
 import { Heading, Stamp, Tag, Tape } from "@/components/scrap";
@@ -99,12 +100,13 @@ export async function DayScreen({ date }: { date: string }) {
       )}
 
       {!isFuture && (
-        <details open={editFirst || undefined} className="group">
-          <summary className="btn-ghost mb-3 cursor-pointer list-none text-center marker:hidden">
-            {entry ? "Edit this page" : "Write today's page"}
-          </summary>
+        <EntryPanel
+          defaultOpen={editFirst}
+          openLabel="Hide the form"
+          closedLabel={entry ? "Edit this page" : "Write today's page"}
+        >
           <EntryForm
-            key={`${entry?.id ?? "new"}-${entry?.rating}-${entry?.note}-${entry?.weigh_in}-${entry?.influence_ids.join()}`}
+            key={date}
             date={date}
             entry={entry}
             influences={influences}
@@ -116,7 +118,7 @@ export async function DayScreen({ date }: { date: string }) {
               />
             }
           />
-        </details>
+        </EntryPanel>
       )}
     </div>
   );

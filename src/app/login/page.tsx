@@ -15,6 +15,7 @@ export default function LoginPage() {
         <h1 className="text-center text-3xl text-[#3b2f1e]">Obis Journal</h1>
         <input
           name="email"
+          defaultValue={state.email}
           type="email"
           autoComplete="email"
           placeholder="Email"

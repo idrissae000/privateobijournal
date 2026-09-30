@@ -30,7 +30,7 @@ export function Collage({ photos, entryId }: { photos: CollagePhoto[]; entryId: 
   const resolved = useMemo(() => resolveCollage(photos), [photos]);
   const items = editing ? draft : resolved.items;
   const height = editing
-    ? Math.max(40, Math.max(0, ...draft.map((i) => i.y + i.h)) + 3)
+    ? Math.max(40, Math.max(0, ...draft.map((i) => i.y + i.h)) + 6)
     : resolved.height;
   const urlById = useMemo(() => new Map(photos.map((p) => [p.id, p.url])), [photos]);
 
@@ -128,7 +128,7 @@ export function Collage({ photos, entryId }: { photos: CollagePhoto[]; entryId: 
     <div className="space-y-3">
       <div
         ref={canvas}
-        className="relative w-full overflow-hidden"
+        className="relative w-full"
         style={{ aspectRatio: `100 / ${height}` }}
         onPointerDown={() => editing && setSelected(null)}
         onPointerMove={onPointerMove}

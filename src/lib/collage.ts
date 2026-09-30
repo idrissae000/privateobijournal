@@ -68,5 +68,5 @@ export function resolveCollage(photos: Pick<Photo, "id" | "layout">[]): { items:
     for (const it of items) bottom = Math.max(bottom, it.y + it.h);
   }
 
-  return { items, height: Math.max(40, bottom + 3) };
+  return { items, height: Math.max(40, bottom + 6) };
 }

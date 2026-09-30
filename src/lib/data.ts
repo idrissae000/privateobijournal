@@ -1,8 +1,10 @@
 import "server-only";
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { presignView } from "@/lib/r2";
+import { seedIfEmpty } from "@/lib/seed";
 import { todayInTz, daysInMonth, dayKey } from "@/lib/dates";
 import type { Entry, Influence, Month, Photo } from "@/lib/types";
 
@@ -15,15 +17,19 @@ export async function getToday(): Promise<string> {
   return todayInTz(await getTz());
 }
 
-/** The signed-in user, or redirect to /login. Also returns an RLS-scoped client. */
-export async function requireUser() {
+/**
+ * The signed-in user (or redirect to /login) plus an RLS-scoped client. Memoized per request,
+ * and seeds a brand-new account first, so the layout and the page never race each other.
+ */
+export const requireUser = cache(async () => {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+  await seedIfEmpty(supabase, await getTz());
   return { supabase, user };
-}
+});
 
 type Client = Awaited<ReturnType<typeof createClient>>;
 
