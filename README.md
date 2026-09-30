@@ -1,36 +1,52 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Obis Journal
 
-## Getting Started
+A private, single-user scrapbook journal (PWA). Each month is a chapter, each day is a page.
 
-First, run the development server:
+**Stack:** Next.js 16 (App Router) on Vercel · Supabase (auth + Postgres, RLS on every table) · Cloudflare R2 (private photo storage via presigned URLs).
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Environment variables
+
+Copy `.env.example` to `.env.local` (local) and add the same names in Vercel → Settings → Environment Variables:
+
+| Name | What |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon / publishable key |
+| `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | R2 S3 API credentials (bucket read + write) |
+| `R2_BUCKET` | `journal-photos` |
+
+`NEXT_PUBLIC_*` values are baked in at build time: redeploy after changing them.
+
+## R2 CORS (required for uploads)
+
+Bucket → Settings → CORS policy:
+
+```json
+[{
+  "AllowedOrigins": ["http://localhost:3000", "https://<your-vercel-domain>"],
+  "AllowedMethods": ["GET", "PUT"],
+  "AllowedHeaders": ["Content-Type"],
+  "MaxAgeSeconds": 3600
+}]
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Database
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Migrations live in `supabase/migrations/` (schema + RLS, anon revoke, single-user lock). The lock is a trigger on
+`auth.users` that rejects any sign-up once an account exists, so public signup stays closed even if the dashboard
+toggle is on.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Privacy rules
 
-## Learn More
+- Photos are never public: the bucket is private and every view goes through a short-lived presigned URL.
+- Progress photos (`is_progress_photo`) are always `is_hidden` and only ever appear on `/progress`.
+- Every request except `/login` needs a Supabase session (`src/proxy.ts`).
 
-To learn more about Next.js, take a look at the following resources:
+## Develop
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm install
+npm run dev
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+First sign-in seeds the retrospective months (Mar/Apr/Jun/Jul 2025) and September 2026.
