@@ -18,13 +18,15 @@ Copy `.env.example` to `.env.local` (local) and add the same names in Vercel →
 
 `NEXT_PUBLIC_*` values are baked in at build time: redeploy after changing them.
 
-## R2 CORS (required for uploads)
+## R2 CORS (recommended for uploads)
+
+Without it the app still works: if the browser can't upload directly, it uploads through the server instead (`/api/upload`). The rule below just makes uploads direct and faster.
 
 Bucket → Settings → CORS policy:
 
 ```json
 [{
-  "AllowedOrigins": ["http://localhost:3000", "https://<your-vercel-domain>"],
+  "AllowedOrigins": ["http://localhost:3000", "https://privateobijournal.vercel.app"],
   "AllowedMethods": ["GET", "PUT"],
   "AllowedHeaders": ["Content-Type"],
   "MaxAgeSeconds": 3600

@@ -9,9 +9,11 @@ function r2() {
   if (!R2_ACCOUNT_ID || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY || !process.env.R2_BUCKET) {
     throw new Error("R2 env vars are not configured");
   }
+  const custom = process.env.R2_ENDPOINT; // optional override (tests / custom S3-compatible endpoint)
   client ??= new S3Client({
     region: "auto",
-    endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+    endpoint: custom || `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+    forcePathStyle: !!custom,
     credentials: { accessKeyId: R2_ACCESS_KEY_ID, secretAccessKey: R2_SECRET_ACCESS_KEY },
   });
   return client;
@@ -47,4 +49,9 @@ export function isOwnKey(key: unknown, userId: string): key is string {
 
 export async function deleteObject(key: string) {
   await r2().send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET, Key: key }));
+}
+
+/** Upload straight from the server (used when the browser can't PUT to R2 directly, e.g. no CORS rule). */
+export async function putObject(key: string, body: Uint8Array, contentType: string) {
+  await r2().send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET, Key: key, Body: body, ContentType: contentType }));
 }

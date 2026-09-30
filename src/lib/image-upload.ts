@@ -27,17 +27,35 @@ export async function compressImage(file: File): Promise<{ blob: Blob; ar: numbe
   return { blob, ar: width / height };
 }
 
-// Compress, then upload straight to R2 via a presigned URL. Returns the storage key and aspect ratio.
+// Once a direct browser->R2 upload has been blocked (typically a missing CORS rule), go through the
+// server for the rest of this page's life instead of failing first every time.
+let directBlocked = false;
+
+async function uploadViaServer(blob: Blob): Promise<string> {
+  const res = await fetch("/api/upload", { method: "POST", headers: { "Content-Type": "image/jpeg" }, body: blob });
+  const body = (await res.json().catch(() => ({}))) as { key?: string; error?: string };
+  if (!res.ok || !body.key) throw new Error(body.error ?? "Upload failed");
+  return body.key;
+}
+
+// Compress, then upload to R2. Tries a direct presigned PUT first; if the browser can't do that
+// (CORS not set up on the bucket, network filtering), falls back to uploading via the server.
 export async function uploadImage(file: File): Promise<{ key: string; ar: number }> {
   const { blob, ar } = await compressImage(file);
 
-  const res = await fetch("/api/upload-url", { method: "POST" });
-  if (!res.ok) throw new Error("Couldn't start upload");
-  const { key, url } = (await res.json()) as { key: string; url: string };
-
-  const put = await fetch(url, { method: "PUT", headers: { "Content-Type": "image/jpeg" }, body: blob });
-  if (!put.ok) throw new Error("Upload failed");
-  return { key, ar };
+  if (!directBlocked) {
+    try {
+      const res = await fetch("/api/upload-url", { method: "POST" });
+      if (!res.ok) throw new Error("Couldn't start upload");
+      const { key, url } = (await res.json()) as { key: string; url: string };
+      const put = await fetch(url, { method: "PUT", headers: { "Content-Type": "image/jpeg" }, body: blob });
+      if (put.ok) return { key, ar };
+      directBlocked = true; // R2 answered but refused (e.g. signature/CORS preflight rejection)
+    } catch {
+      directBlocked = true; // "Failed to fetch": blocked before reaching R2
+    }
+  }
+  return { key: await uploadViaServer(blob), ar };
 }
 
 // --- Signed view URLs (private bucket), cached client-side until shortly before expiry ---
