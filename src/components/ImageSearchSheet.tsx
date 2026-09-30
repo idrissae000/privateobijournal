@@ -21,6 +21,8 @@ export function ImageSearchSheet({
   const [busy, setBusy] = useState<"search" | "import" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notConfigured, setNotConfigured] = useState(false);
+  const [limitHit, setLimitHit] = useState<number | null>(null);
+  const [remaining, setRemaining] = useState<number | null>(null);
 
   async function search(e?: React.FormEvent) {
     e?.preventDefault();
@@ -31,8 +33,10 @@ export function ImageSearchSheet({
       const res = await fetch(`/api/image-search?q=${encodeURIComponent(q.trim())}`);
       const body = await res.json().catch(() => ({}));
       if (res.status === 501) { setNotConfigured(true); setResults([]); return; }
+      if (res.status === 429) { setLimitHit(body.limit ?? null); setResults([]); return; }
       if (!res.ok) throw new Error(body.error ?? "Search failed");
       setResults(body.results ?? []);
+      setRemaining(typeof body.remaining === "number" ? body.remaining : null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Search failed");
     } finally {
@@ -99,6 +103,11 @@ export function ImageSearchSheet({
             Web search isn&apos;t switched on yet (it needs a search API key). You can still paste an image link or a copied image below.
           </p>
         )}
+        {limitHit !== null && (
+          <p role="status" className="font-hand text-xl leading-snug text-stamp">
+            You&apos;ve used this month&apos;s {limitHit} web searches. It resets on the 1st. You can still paste an image link or use your photo library below.
+          </p>
+        )}
         {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
 
         {results && results.length > 0 && (
@@ -116,7 +125,8 @@ export function ImageSearchSheet({
             ))}
           </ul>
         )}
-        {results && results.length === 0 && !notConfigured && <p className="font-hand text-center text-xl text-ink-soft">Nothing found. Try different words.</p>}
+        {remaining !== null && limitHit === null && <p className="font-type text-[11px] text-ink-soft">{remaining} web searches left this month</p>}
+        {results && results.length === 0 && !notConfigured && limitHit === null && <p className="font-hand text-center text-xl text-ink-soft">Nothing found. Try different words.</p>}
         {busy === "import" && <p className="font-hand text-center text-xl">Bringing it in…</p>}
 
         {onLibrary && (

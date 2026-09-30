@@ -14,6 +14,7 @@ Copy `.env.example` to `.env.local` (local) and add the same names in Vercel →
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon / publishable key |
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | R2 S3 API credentials (bucket read + write) |
 | `R2_BUCKET` | `journal-photos` |
+| `IMAGE_SEARCH_MONTHLY_LIMIT` | *Optional.* Max web image searches per calendar month (default 800). Enforced in the database |
 | `BRAVE_SEARCH_API_KEY` | *Optional.* Turns on web image search (Brave Search API). Without it, pasting an image link still works |
 
 `NEXT_PUBLIC_*` values are baked in at build time: redeploy after changing them.
@@ -35,7 +36,7 @@ Bucket → Settings → CORS policy:
 
 ## Database
 
-Migrations live in `supabase/migrations/` (schema + RLS, anon revoke, single-user lock, themes). The lock is a trigger on
+Migrations live in `supabase/migrations/` (schema + RLS, anon revoke, single-user lock, themes, search cap). The lock is a trigger on
 `auth.users` that rejects any sign-up once an account exists, so public signup stays closed even if the dashboard
 toggle is on.
 

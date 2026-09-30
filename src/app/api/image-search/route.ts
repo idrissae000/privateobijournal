@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getToday } from "@/lib/data";
 
 type BraveImage = {
   title?: string;
@@ -26,6 +27,15 @@ export async function GET(request: Request) {
   const q = (new URL(request.url).searchParams.get("q") ?? "").trim().slice(0, 200);
   if (!q) return NextResponse.json({ results: [] });
 
+  // Monthly cap, enforced in the database so concurrent requests can't slip past it.
+  // Brave bills per request beyond its free credit, so never call it once the cap is reached.
+  const limit = Math.max(1, Number(process.env.IMAGE_SEARCH_MONTHLY_LIMIT) || 800);
+  const month = (await getToday()).slice(0, 7);
+  const { data: used, error: capError } = await supabase.rpc("take_search_credit", { p_month: month, p_limit: limit });
+  if (capError) return NextResponse.json({ error: "Couldn't check the search allowance" }, { status: 500 });
+  if (used == null) return NextResponse.json({ error: "search_limit", limit }, { status: 429 });
+  const remaining = Math.max(0, limit - (used as number));
+
   const endpoint = process.env.IMAGE_SEARCH_ENDPOINT ?? "https://api.search.brave.com/res/v1/images/search";
   try {
     const res = await fetch(`${endpoint}?${new URLSearchParams({ q, count: "24", safesearch: "strict" })}`, {
@@ -43,7 +53,7 @@ export async function GET(request: Request) {
       }))
       .filter((r) => isHttp(r.thumb) && isHttp(r.full))
       .slice(0, 24);
-    return NextResponse.json({ results });
+    return NextResponse.json({ results, remaining, limit });
   } catch {
     return NextResponse.json({ error: "Search is unreachable right now" }, { status: 502 });
   }
