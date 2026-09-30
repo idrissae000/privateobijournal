@@ -48,6 +48,9 @@ export default async function TimelinePage() {
                   <div className="flex flex-wrap gap-1.5 pt-1">
                     {names.map((n) => <Tag key={n}>{n}</Tag>)}
                   </div>
+                  {(m.themes ?? []).length > 0 && (
+                    <p className="font-hand text-lg leading-tight text-stamp/80">{m.themes.map((t) => `#${t}`).join(" ")}</p>
+                  )}
                   <div className="flex items-center gap-2 pt-1">
                     {m.is_retrospective && <Stamp rotate={-2} className="text-[10px] !text-ink-soft">retrospective</Stamp>}
                     {m.sealed_at && <Stamp rotate={2} className="text-[10px]">sealed</Stamp>}

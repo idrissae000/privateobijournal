@@ -4,18 +4,20 @@ import { AddInfluenceButton } from "@/components/AddInfluence";
 import { CalendarGrid } from "@/components/CalendarGrid";
 import { InfluenceBoard } from "@/components/InfluenceBoard";
 import { MonthCoverPhoto } from "@/components/MonthCoverPhoto";
+import { MonthThemes } from "@/components/MonthThemes";
 import { RetroEditor } from "@/components/RetroEditor";
 import { SealPanel } from "@/components/SealPanel";
 import { WeightChart } from "@/components/WeightChart";
 import { Empty, Frame, Heading, Stamp, Tape } from "@/components/scrap";
 import {
-  getAllInfluences, getEntries, getInfluences, getOrCreateMonth, getPhotosForEntries, getToday,
+  getAllInfluences, getAllMonths, getEntries, getInfluences, getOrCreateMonth, getPhotosForEntries, getToday,
   isGalleryPhoto, requireUser, signKeys,
 } from "@/lib/data";
 import {
   dayKey, daysInMonth, formatShortDate, monthLabel, nextYm, parseYm, prevYm, ymKey,
 } from "@/lib/dates";
 import { computeStats, fmt1 } from "@/lib/stats";
+import { collectThemes, sharedThemes } from "@/lib/themes";
 import type { Month } from "@/lib/types";
 
 export default async function MonthPage({ params }: PageProps<"/month/[ym]">) {
@@ -60,9 +62,10 @@ export default async function MonthPage({ params }: PageProps<"/month/[ym]">) {
   }
 
   const retro = month.is_retrospective;
-  const [influences, library, entries] = await Promise.all([
+  const [influences, library, allMonths, entries] = await Promise.all([
     getInfluences(supabase, month.id),
     getAllInfluences(supabase),
+    getAllMonths(supabase),
     retro ? Promise.resolve([]) : getEntries(supabase, month.id),
   ]);
   const photos = await getPhotosForEntries(supabase, entries.map((e) => e.id));
@@ -90,6 +93,7 @@ export default async function MonthPage({ params }: PageProps<"/month/[ym]">) {
   const stamped = inMonth ? today : dayKey(year, m, 1);
 
   const suggestions = library.map((l) => ({ name: l.name, image_key: l.image_key }));
+  const allThemes = collectThemes(allMonths, library);
 
   return (
     <div className="space-y-8">
@@ -110,12 +114,13 @@ export default async function MonthPage({ params }: PageProps<"/month/[ym]">) {
             <p className="font-hand mt-2 text-xl text-ink-soft">The title gets written at the end of the month.</p>
           )}
         </div>
-        <MonthCoverPhoto monthId={month.id} value={month.cover_image_key} url={month.cover_image_key ? urls[month.cover_image_key] : null} />
+        <MonthThemes monthId={month.id} themes={month.themes ?? []} shared={sharedThemes(influences)} suggestions={allThemes} />
+        <MonthCoverPhoto monthId={month.id} searchQuery={month.title ?? influences.map((i) => i.name).join(" ")} value={month.cover_image_key} url={month.cover_image_key ? urls[month.cover_image_key] : null} />
 
         <div className="space-y-4">
           <Heading>{retro ? "Who shaped it" : "Influences"}</Heading>
           {influences.length ? (
-            <InfluenceBoard influences={influences} urls={urls} detailed={retro} />
+            <InfluenceBoard influences={influences} urls={urls} detailed={retro} themeSuggestions={allThemes} />
           ) : (
             <Empty>{retro ? "No influences here yet." : "Blank so far. Add whoever is on your mind."}</Empty>
           )}

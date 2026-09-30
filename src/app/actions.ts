@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getOrCreateMonth } from "@/lib/data";
 import { deleteObject, isOwnKey } from "@/lib/r2";
 import { isValidDate } from "@/lib/dates";
+import { normalizeThemes } from "@/lib/themes";
 import type { Layout } from "@/lib/types";
 
 async function authed() {
@@ -172,10 +173,10 @@ export async function addInfluence(input: {
 
 export async function updateInfluence(
   id: string,
-  patch: { name?: string; imageKey?: string | null; why?: string; sourceNote?: string },
+  patch: { name?: string; imageKey?: string | null; why?: string; sourceNote?: string; themes?: string[] },
 ) {
   const { supabase, user } = await authed();
-  const row: Record<string, string | null> = {};
+  const row: Record<string, string | string[] | null> = {};
   if (patch.name != null) {
     const n = clean(patch.name, 120);
     if (!n) throw new Error("Name is required");
@@ -187,6 +188,7 @@ export async function updateInfluence(
   }
   if (patch.why != null) row.why_it_resonates = orNull(clean(patch.why));
   if (patch.sourceNote != null) row.source_note = orNull(clean(patch.sourceNote, 300));
+  if (patch.themes != null) row.themes = normalizeThemes(patch.themes);
   const { error } = await supabase.from("influences").update(row).eq("id", id);
   if (error) throw error;
   refresh();
@@ -201,10 +203,10 @@ export async function deleteInfluence(id: string) {
 
 export async function updateMonth(
   id: string,
-  patch: { title?: string; coverImageKey?: string | null; reflection?: string; howItChanged?: string },
+  patch: { title?: string; coverImageKey?: string | null; reflection?: string; howItChanged?: string; themes?: string[] },
 ) {
   const { supabase, user } = await authed();
-  const row: Record<string, string | null> = {};
+  const row: Record<string, string | string[] | null> = {};
   if (patch.title != null) row.title = orNull(clean(patch.title, 200));
   if (patch.coverImageKey !== undefined) {
     if (patch.coverImageKey && !isOwnKey(patch.coverImageKey, user.id)) throw new Error("Bad image");
@@ -212,6 +214,7 @@ export async function updateMonth(
   }
   if (patch.reflection != null) row.month_end_reflection = orNull(clean(patch.reflection, 10000));
   if (patch.howItChanged != null) row.how_it_changed_me = orNull(clean(patch.howItChanged, 10000));
+  if (patch.themes != null) row.themes = normalizeThemes(patch.themes);
   const { error } = await supabase.from("months").update(row).eq("id", id);
   if (error) throw error;
   refresh();

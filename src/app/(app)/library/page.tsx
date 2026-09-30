@@ -1,4 +1,4 @@
-import { LibraryList, type LibraryItem } from "@/components/LibraryList";
+import { LibraryList, type LibraryItem, type ThemeGroup } from "@/components/LibraryList";
 import { Heading } from "@/components/scrap";
 import { getAllInfluences, getAllMonths, requireUser, signKeys } from "@/lib/data";
 import { monthLabel, ymKey } from "@/lib/dates";
@@ -29,6 +29,7 @@ export default async function LibraryPage() {
       imageKey: latestWithImage?.image_key ?? null,
       sources: [...new Set(list.map((i) => i.source_note).filter((s): s is string => !!s))],
       why: latestWhy?.why_it_resonates ?? null,
+      themes: [...new Map(list.flatMap((i) => i.themes ?? []).map((t) => [t.toLowerCase(), t])).values()],
       months: [...seen.values()].sort((a, b) => a.ym.localeCompare(b.ym)),
     };
   });
@@ -39,11 +40,26 @@ export default async function LibraryPage() {
     // most recently appearing first
     .sort((a, b) => (b.months.at(-1)?.ym ?? "").localeCompare(a.months.at(-1)?.ym ?? ""));
 
+  // Theme -> the characters and the months that carry it
+  const groupsByKey = new Map<string, ThemeGroup>();
+  const group = (t: string) => {
+    const k = t.toLowerCase();
+    if (!groupsByKey.has(k)) groupsByKey.set(k, { theme: t, characters: [], months: [] });
+    return groupsByKey.get(k)!;
+  };
+  for (const r of raw) for (const t of r.themes) group(t).characters.push(r.name);
+  for (const m of months) {
+    for (const t of m.themes ?? []) group(t).months.push({ ym: ymKey(m.year, m.month), label: monthLabel(m.year, m.month) });
+  }
+  const themeGroups = [...groupsByKey.values()].sort(
+    (a, b) => b.characters.length + b.months.length - (a.characters.length + a.months.length) || a.theme.localeCompare(b.theme),
+  );
+
   return (
     <div className="space-y-6">
       <Heading>Character library</Heading>
       <p className="font-hand text-xl text-ink-soft">Everyone who has ever shaped a month. Recurring ones show up more than once.</p>
-      <LibraryList items={items} />
+      <LibraryList items={items} themeGroups={themeGroups} />
     </div>
   );
 }

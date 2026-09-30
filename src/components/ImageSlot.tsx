@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ImageSearchSheet } from "@/components/ImageSearchSheet";
 import { getPhotoUrls, uploadImage } from "@/lib/image-upload";
 
 type Props = {
@@ -14,16 +15,19 @@ type Props = {
   className?: string;
   /** Extra content drawn over an empty slot, under the "+" */
   hint?: string;
+  /** When set, a small magnifier button lets you pick a photo from a web search (seeded with this text). */
+  searchQuery?: string;
 };
 
 // Tap to pick from the camera roll or take a photo; uploads straight to R2 and shows immediately.
 // Empty slots are dashed placeholders with a "+".
-export function ImageSlot({ value, url, onChange, label = "Add photo", className = "", hint }: Props) {
+export function ImageSlot({ value, url, onChange, label = "Add photo", className = "", hint, searchQuery }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const [localUrl, setLocalUrl] = useState<string | null>(null);
   const [remote, setRemote] = useState<{ key: string; url: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searching, setSearching] = useState(false);
 
   useEffect(() => {
     if (!value || url) return;
@@ -57,7 +61,7 @@ export function ImageSlot({ value, url, onChange, label = "Add photo", className
   const src = localUrl ?? url ?? (remote && remote.key === value ? remote.url : null);
 
   return (
-    <div className={className}>
+    <div className={`relative ${className}`}>
       <button
         type="button"
         onClick={() => input.current?.click()}
@@ -82,6 +86,15 @@ export function ImageSlot({ value, url, onChange, label = "Add photo", className
           </span>
         )}
       </button>
+      {searchQuery !== undefined && (
+        <button
+          type="button" onClick={() => setSearching(true)} disabled={busy} aria-label="Search the web for a photo"
+          className="absolute right-1 top-1 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-paper-3/95 text-base shadow"
+        >
+          🔍
+        </button>
+      )}
+      {searching && <ImageSearchSheet initialQuery={searchQuery ?? ""} onClose={() => setSearching(false)} onPick={handleFile} />}
       {error && <p role="alert" className="mt-1 text-xs text-red-700">{error}</p>}
       <input
         ref={input}

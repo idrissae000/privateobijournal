@@ -22,6 +22,7 @@ export type Month = {
   how_it_changed_me: string | null;
   is_retrospective: boolean;
   sealed_at: string | null;
+  themes: string[];
 };
 
 export type Influence = {
@@ -32,6 +33,7 @@ export type Influence = {
   why_it_resonates: string | null;
   date_added: string;
   source_note: string | null;
+  themes: string[];
 };
 
 export type Entry = {

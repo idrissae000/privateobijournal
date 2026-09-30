@@ -68,7 +68,7 @@ export function AddInfluenceButton({
 
             <div className="flex gap-4">
               <div className="polaroid h-28 w-28 shrink-0 -rotate-2">
-                <ImageSlot value={imageKey} onChange={(k) => setImageKey(k)} label="Add influence image" className="h-full w-full" />
+                <ImageSlot value={imageKey} onChange={(k) => setImageKey(k)} label="Add influence image" className="h-full w-full" searchQuery={name} />
               </div>
               <div className="flex-1 space-y-2">
                 <input
