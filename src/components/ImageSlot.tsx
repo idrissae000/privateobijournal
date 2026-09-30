@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ImageSearchSheet } from "@/components/ImageSearchSheet";
+import { PhotoSourceSheet } from "@/components/PhotoSourceSheet";
 import { getPhotoUrls, uploadImage } from "@/lib/image-upload";
 
 type Props = {
@@ -15,7 +16,7 @@ type Props = {
   className?: string;
   /** Extra content drawn over an empty slot, under the "+" */
   hint?: string;
-  /** When set, a small magnifier button lets you pick a photo from a web search (seeded with this text). */
+  /** When set, tapping the slot asks where the photo comes from (library, camera, or a web search seeded with this text). */
   searchQuery?: string;
 };
 
@@ -23,6 +24,8 @@ type Props = {
 // Empty slots are dashed placeholders with a "+".
 export function ImageSlot({ value, url, onChange, label = "Add photo", className = "", hint, searchQuery }: Props) {
   const input = useRef<HTMLInputElement>(null);
+  const camera = useRef<HTMLInputElement>(null);
+  const [choosing, setChoosing] = useState(false);
   const [localUrl, setLocalUrl] = useState<string | null>(null);
   const [remote, setRemote] = useState<{ key: string; url: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -64,8 +67,9 @@ export function ImageSlot({ value, url, onChange, label = "Add photo", className
     <div className={`relative ${className}`}>
       <button
         type="button"
-        onClick={() => input.current?.click()}
+        onClick={() => (searchQuery !== undefined ? setChoosing(true) : input.current?.click())}
         disabled={busy}
+        aria-haspopup={searchQuery !== undefined ? "dialog" : undefined}
         aria-label={label}
         className={`relative flex h-full w-full flex-col items-center justify-center overflow-hidden ${
           src ? "" : "border-2 border-dashed border-ink/40 text-ink/60"
@@ -86,16 +90,28 @@ export function ImageSlot({ value, url, onChange, label = "Add photo", className
           </span>
         )}
       </button>
-      {searchQuery !== undefined && (
-        <button
-          type="button" onClick={() => setSearching(true)} disabled={busy} aria-label="Search the web for a photo"
-          className="absolute right-1 top-1 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-paper-3/95 text-base shadow"
-        >
-          🔍
-        </button>
+      {choosing && (
+        <PhotoSourceSheet
+          onClose={() => setChoosing(false)}
+          onLibrary={() => { setChoosing(false); input.current?.click(); }}
+          onCamera={() => { setChoosing(false); camera.current?.click(); }}
+          onSearch={() => { setChoosing(false); setSearching(true); }}
+        />
       )}
-      {searching && <ImageSearchSheet initialQuery={searchQuery ?? ""} onClose={() => setSearching(false)} onPick={handleFile} />}
+      {searching && <ImageSearchSheet initialQuery={searchQuery ?? ""} onClose={() => setSearching(false)} onPick={handleFile} onLibrary={() => input.current?.click()} />}
       {error && <p role="alert" className="mt-1 text-xs text-red-700">{error}</p>}
+      <input
+        ref={camera}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (file) void handleFile(file);
+        }}
+      />
       <input
         ref={input}
         type="file"

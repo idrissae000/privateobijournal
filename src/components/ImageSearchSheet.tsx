@@ -7,11 +7,13 @@ type Result = { thumb: string; full: string; title: string; source: string };
 
 /** Find a photo on the web (or paste a link / a copied image) instead of saving it to the phone first. */
 export function ImageSearchSheet({
-  initialQuery, onClose, onPick,
+  initialQuery, onClose, onPick, onLibrary,
 }: {
   initialQuery: string;
   onClose: () => void;
   onPick: (file: File) => void | Promise<void>;
+  /** switch to picking from the phone's photo library instead */
+  onLibrary?: () => void;
 }) {
   const [q, setQ] = useState(initialQuery);
   const [results, setResults] = useState<Result[] | null>(null);
@@ -116,6 +118,10 @@ export function ImageSearchSheet({
         )}
         {results && results.length === 0 && !notConfigured && <p className="font-hand text-center text-xl text-ink-soft">Nothing found. Try different words.</p>}
         {busy === "import" && <p className="font-hand text-center text-xl">Bringing it in…</p>}
+
+        {onLibrary && (
+          <button type="button" className="btn-ghost" onClick={() => { onClose(); onLibrary(); }}>🖼 Use a photo from my library instead</button>
+        )}
 
         <form
           onSubmit={(e) => { e.preventDefault(); if (link.trim()) void importFrom(link.trim()); }}
