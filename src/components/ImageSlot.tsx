@@ -1,0 +1,91 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { getPhotoUrls, uploadImage } from "@/lib/image-upload";
+
+type Props = {
+  /** R2 storage key of the current image, or null for an empty slot. */
+  value: string | null;
+  /** Called with the new storage key once the upload has finished. */
+  onChange: (key: string) => void;
+  label?: string;
+  className?: string;
+};
+
+// Tap to pick from the camera roll or take a photo; uploads straight to R2 and shows immediately.
+// Empty slots are dashed placeholders with a "+".
+export function ImageSlot({ value, onChange, label = "Add photo", className = "" }: Props) {
+  const input = useRef<HTMLInputElement>(null);
+  const [localUrl, setLocalUrl] = useState<string | null>(null);
+  const [remote, setRemote] = useState<{ key: string; url: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!value) return;
+    let cancelled = false;
+    getPhotoUrls([value])
+      .then((urls) => !cancelled && urls[value] && setRemote({ key: value, url: urls[value] }))
+      .catch(() => !cancelled && setError("Couldn't load photo"));
+    return () => {
+      cancelled = true;
+    };
+  }, [value]);
+
+  useEffect(() => () => { if (localUrl) URL.revokeObjectURL(localUrl); }, [localUrl]);
+
+  async function handleFile(file: File) {
+    setError(null);
+    setBusy(true);
+    const preview = URL.createObjectURL(file); // show immediately, before the upload finishes
+    setLocalUrl(preview);
+    try {
+      onChange(await uploadImage(file));
+    } catch (e) {
+      setLocalUrl(null);
+      setError(e instanceof Error ? e.message : "Upload failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const src = localUrl ?? (remote && remote.key === value ? remote.url : null);
+
+  return (
+    <div className={className}>
+      <button
+        type="button"
+        onClick={() => input.current?.click()}
+        disabled={busy}
+        aria-label={label}
+        className={`relative flex h-full w-full items-center justify-center overflow-hidden ${
+          src ? "" : "border-2 border-dashed border-[#3b2f1e]/40 text-4xl text-[#3b2f1e]/60"
+        }`}
+      >
+        {src ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={src} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <span aria-hidden>+</span>
+        )}
+        {busy && (
+          <span className="absolute inset-0 flex items-center justify-center bg-black/30 text-sm text-white">
+            Uploading…
+          </span>
+        )}
+      </button>
+      {error && <p role="alert" className="mt-1 text-xs text-red-700">{error}</p>}
+      <input
+        ref={input}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (file) void handleFile(file);
+        }}
+      />
+    </div>
+  );
+}
