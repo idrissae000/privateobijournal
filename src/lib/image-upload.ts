@@ -5,7 +5,7 @@ const QUALITY = 0.8;
 
 // Resize to at most MAX_WIDTH wide and re-encode as JPEG @ 80%.
 // createImageBitmap with imageOrientation "from-image" bakes in EXIF rotation (iPhone photos).
-export async function compressImage(file: File): Promise<Blob> {
+export async function compressImage(file: File): Promise<{ blob: Blob; ar: number }> {
   const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
   const scale = Math.min(1, MAX_WIDTH / bitmap.width);
   const width = Math.round(bitmap.width * scale);
@@ -21,14 +21,15 @@ export async function compressImage(file: File): Promise<Blob> {
   ctx.drawImage(bitmap, 0, 0, width, height);
   bitmap.close();
 
-  return new Promise((resolve, reject) =>
+  const blob = await new Promise<Blob>((resolve, reject) =>
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Compression failed"))), "image/jpeg", QUALITY),
   );
+  return { blob, ar: width / height };
 }
 
-// Compress, then upload straight to R2 via a presigned URL. Returns the storage key.
-export async function uploadImage(file: File): Promise<string> {
-  const blob = await compressImage(file);
+// Compress, then upload straight to R2 via a presigned URL. Returns the storage key and aspect ratio.
+export async function uploadImage(file: File): Promise<{ key: string; ar: number }> {
+  const { blob, ar } = await compressImage(file);
 
   const res = await fetch("/api/upload-url", { method: "POST" });
   if (!res.ok) throw new Error("Couldn't start upload");
@@ -36,7 +37,7 @@ export async function uploadImage(file: File): Promise<string> {
 
   const put = await fetch(url, { method: "PUT", headers: { "Content-Type": "image/jpeg" }, body: blob });
   if (!put.ok) throw new Error("Upload failed");
-  return key;
+  return { key, ar };
 }
 
 // --- Signed view URLs (private bucket), cached client-side until shortly before expiry ---

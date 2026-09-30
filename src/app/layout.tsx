@@ -1,28 +1,30 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Caveat, Special_Elite, Lora } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+const caveat = Caveat({ variable: "--font-caveat", subsets: ["latin"] });
+const specialElite = Special_Elite({ variable: "--font-special-elite", subsets: ["latin"], weight: "400" });
+const lora = Lora({ variable: "--font-lora", subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Obis Journal",
   description: "A private scrapbook journal",
+  applicationName: "Obis Journal",
+  appleWebApp: { capable: true, title: "Obis Journal", statusBarStyle: "black-translucent" },
+  formatDetection: { telephone: false },
+  robots: { index: false, follow: false },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#f3e9d2",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
+    <html lang="en" className={`${caveat.variable} ${specialElite.variable} ${lora.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );

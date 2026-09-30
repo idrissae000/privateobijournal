@@ -1,5 +1,5 @@
 import "server-only";
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 let client: S3Client | null = null;
@@ -18,7 +18,10 @@ function r2() {
 }
 
 export const PUT_TTL_SECONDS = 300;
-export const GET_TTL_SECONDS = 3600;
+// View URLs are signed on a 30-minute grid so the same photo gets the same URL
+// for a while (browser cache hits), and stay valid for at least 90 more minutes.
+export const GET_TTL_SECONDS = 2 * 3600;
+const SIGN_GRID_MS = 30 * 60 * 1000;
 
 export function presignUpload(key: string, contentType: string) {
   return getSignedUrl(
@@ -32,7 +35,7 @@ export function presignView(key: string) {
   return getSignedUrl(
     r2(),
     new GetObjectCommand({ Bucket: process.env.R2_BUCKET, Key: key }),
-    { expiresIn: GET_TTL_SECONDS },
+    { expiresIn: GET_TTL_SECONDS, signingDate: new Date(Math.floor(Date.now() / SIGN_GRID_MS) * SIGN_GRID_MS) },
   );
 }
 
@@ -40,4 +43,8 @@ export function presignView(key: string) {
 const KEY_RE = /^[0-9a-f-]{36}\/[0-9a-f-]{36}\.jpg$/;
 export function isOwnKey(key: unknown, userId: string): key is string {
   return typeof key === "string" && KEY_RE.test(key) && key.startsWith(`${userId}/`);
+}
+
+export async function deleteObject(key: string) {
+  await r2().send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET, Key: key }));
 }
