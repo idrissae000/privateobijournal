@@ -1,0 +1,8 @@
+# env
+.env.local
+.env*.local
+
+# deps / build
+node_modules/
+.next/
+.vercel/
