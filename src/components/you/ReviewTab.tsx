@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import Link from "next/link";
 import { AdminActions, FlagList, type FlagRow } from "@/components/AdminActions";
+import { BudgetPanel } from "@/components/you/BudgetPanel";
 import { Heading } from "@/components/scrap";
 import { aiConfigured, dailyCallLimit, insightModel } from "@/lib/ai/config";
 import { getReport } from "@/lib/ai/reports";
@@ -44,8 +45,8 @@ export async function ReviewTab({ supabase, today }: { supabase: SupabaseClient;
     ["Model", insightModel()],
     ["AI calls today", `${used} of ${dailyCallLimit()} (daily cap)`],
     ["Character sheet", archetype ? `${archetype.status}, last written ${ago(archetype.generated_at)}` : "not written yet"],
-    ["Accuracy pass (weekly)", review ? `${review.status}, last run ${ago(review.generated_at)}` : "hasn't run yet"],
-    ["Foreshadowing check (every 3 days)", foreshadow ? `${foreshadow.status}, last run ${ago(foreshadow.generated_at)}` : "hasn't run yet"],
+    ["Accuracy pass (every 2 weeks)", review ? `${review.status}, last run ${ago(review.generated_at)}` : "hasn't run yet"],
+    ["Foreshadowing check (weekly)", foreshadow ? `${foreshadow.status}, last run ${ago(foreshadow.generated_at)}` : "hasn't run yet"],
   ];
 
   return (
@@ -62,6 +63,8 @@ export async function ReviewTab({ supabase, today }: { supabase: SupabaseClient;
           ))}
         </dl>
       </section>
+
+      {aiOn && <BudgetPanel supabase={supabase} today={today} />}
 
       {!aiOn && (
         <section className="paper-card space-y-2 p-4">

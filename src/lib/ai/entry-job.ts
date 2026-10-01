@@ -6,6 +6,9 @@ import { effectiveTraits } from "@/lib/traits";
 import { monthLabel } from "@/lib/dates";
 import type { Influence } from "@/lib/types";
 
+/** An entry that was just read isn't re-read for this long: tweak-and-resave cycles shouldn't each cost a call. */
+export const REREAD_COOLDOWN_MS = 20 * 60_000;
+
 const SCHEMA = {
   type: "object",
   properties: {
@@ -69,7 +72,7 @@ const forPrompt = (i: Influence) => {
 async function loadEntry(supabase: SupabaseClient, entryId: string) {
   const { data: entry } = await supabase
     .from("entries")
-    .select("id,date,month_id,rating,note,weigh_in,insight_hash,insight_status,entry_influences(influence_id)")
+    .select("id,date,month_id,rating,note,weigh_in,insight_hash,insight_status,insight_at,entry_influences(influence_id)")
     .eq("id", entryId)
     .maybeSingle();
   if (!entry) return null;
@@ -103,6 +106,12 @@ export async function queueEntryAnalysis(supabase: SupabaseClient, entryId: stri
       .eq("id", entryId);
     return null;
   }
+  // Just read a moment ago and edited again: keep the earlier read on the page and let it refresh a bit later
+  // (the home-page catch-up picks it up once the cooldown has passed).
+  if (entry.insight_status === "done" && entry.insight_at && Date.now() - Date.parse(entry.insight_at) < REREAD_COOLDOWN_MS) {
+    await supabase.from("entries").update({ insight_status: "none" }).eq("id", entryId);
+    return null;
+  }
   await supabase
     .from("entries")
     .update({ insight_status: "pending", insight_hash: hash, insight_at: new Date().toISOString() })
@@ -132,6 +141,7 @@ export async function analyzeEntry(ctx: AiCtx, entryId: string, hash: string): P
 
   try {
     const out = await callJson(ctx, {
+      kind: "reads",
       system: SYSTEM,
       data: {
         date: entry.date,

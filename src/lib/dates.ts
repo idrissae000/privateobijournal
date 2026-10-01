@@ -56,3 +56,7 @@ export function formatShortDate(date: string): string {
   const d = new Date(`${date}T00:00:00Z`);
   return new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" }).format(d);
 }
+
+/** Whole months from `a` to `b` ("YYYY-MM" strings); positive when b is later. */
+export const monthDiff = (a: string, b: string) =>
+  (Number(b.slice(0, 4)) * 12 + Number(b.slice(5, 7))) - (Number(a.slice(0, 4)) * 12 + Number(a.slice(5, 7)));

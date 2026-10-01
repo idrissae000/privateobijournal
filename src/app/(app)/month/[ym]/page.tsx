@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { after } from "next/server";
 import { notFound } from "next/navigation";
 import { AddInfluenceButton } from "@/components/AddInfluence";
 import { CalendarGrid } from "@/components/CalendarGrid";
@@ -6,6 +7,8 @@ import { InfluenceBoard } from "@/components/InfluenceBoard";
 import { MonthCoverPhoto } from "@/components/MonthCoverPhoto";
 import { MonthThemes } from "@/components/MonthThemes";
 import { FidelitySection } from "@/components/Fidelity";
+import { OpinionCard } from "@/components/OpinionCard";
+import { PlanMonthButton } from "@/components/PlanMonthButton";
 import { MonthConclusion } from "@/components/MonthConclusion";
 import { RetroEditor } from "@/components/RetroEditor";
 import { SealPanel } from "@/components/SealPanel";
@@ -16,12 +19,19 @@ import {
   isGalleryPhoto, requireUser, signKeys,
 } from "@/lib/data";
 import {
-  dayKey, daysInMonth, formatShortDate, monthLabel, nextYm, parseYm, prevYm, ymKey,
+  dayKey, daysInMonth, formatShortDate, monthLabel, monthDiff, nextYm, parseYm, prevYm, ymKey,
 } from "@/lib/dates";
 import { computeStats, fmt1 } from "@/lib/stats";
 import { avgCharacterScore, computeFidelity } from "@/lib/fidelity";
 import { collectThemes, sharedThemes } from "@/lib/themes";
 import { aiConfigured } from "@/lib/ai/config";
+import { makeAiCtx } from "@/lib/ai/ctx";
+import {
+  characterOpinionFingerprint, claimOpinion, generateCharacterOpinion, generateMonthOpinion, getOpinions,
+  monthOpinionFingerprint,
+} from "@/lib/ai/opinion-job";
+import { effectiveTraits } from "@/lib/traits";
+import type { OpinionRow } from "@/lib/opinion";
 import type { Month } from "@/lib/types";
 
 export default async function MonthPage({ params }: PageProps<"/month/[ym]">) {
@@ -49,7 +59,7 @@ export default async function MonthPage({ params }: PageProps<"/month/[ym]">) {
     <div className="flex items-center justify-between">
       <Link href={`/month/${ymKey(prev.year, prev.month)}`} className="font-type flex min-h-11 items-center px-1 text-sm">‹ {monthLabel(prev.year, prev.month)}</Link>
       <Link href="/timeline" className="font-type text-xs underline">all chapters</Link>
-      {ymKey(next.year, next.month) <= currentYm ? (
+      {monthDiff(currentYm, ymKey(next.year, next.month)) <= 3 ? (
         <Link href={`/month/${ymKey(next.year, next.month)}`} className="font-type flex min-h-11 items-center px-1 text-sm">{monthLabel(next.year, next.month)} ›</Link>
       ) : <span className="w-24" />}
     </div>
@@ -61,6 +71,12 @@ export default async function MonthPage({ params }: PageProps<"/month/[ym]">) {
         {nav}
         <Heading>{monthLabel(year, m)}</Heading>
         <Empty>This chapter hasn&apos;t started yet.</Empty>
+        {isFutureMonth && monthDiff(currentYm, ym) <= 6 && (
+          <div className="flex flex-col items-center gap-2">
+            <PlanMonthButton year={year} month={m} />
+            <p className="font-type text-center text-xs text-ink-soft">Pick the influences you want for it and get an opinion on the breakdown.</p>
+          </div>
+        )}
       </div>
     );
   }
@@ -98,6 +114,35 @@ export default async function MonthPage({ params }: PageProps<"/month/[ym]">) {
   const inMonth = today.startsWith(ym);
   const stamped = inMonth ? today : dayKey(year, m, 1);
 
+  const opinionIds = influences.map((i) => i.id);
+  const [monthOps, charOps] = await Promise.all([getOpinions(supabase, "month", [month.id]), getOpinions(supabase, "character", opinionIds)]);
+  const monthOpinion = monthOps.get(month.id);
+
+  // Automatic opinions: current/upcoming months only; rare (breakdown must have changed, and a gap has passed).
+  if (aiOn && !retro && ym >= currentYm && influences.length) {
+    const ctx = await makeAiCtx(supabase);
+    const jobs: (() => Promise<void>)[] = [];
+    if (await claimOpinion(supabase, "month", month.id, {
+      fingerprint: monthOpinionFingerprint(month, influences), minGapMs: 12 * 3600_000, existing: monthOpinion,
+    })) jobs.push(() => generateMonthOpinion(ctx, month.id));
+    let charJobs = 0;
+    for (const inf of influences) {
+      if (charJobs >= 2) break;
+      if (effectiveTraits(inf).source !== "accepted" || charOps.has(inf.id)) continue;
+      if (await claimOpinion(supabase, "character", inf.id, { fingerprint: characterOpinionFingerprint(inf, month.themes ?? []) })) {
+        charJobs++;
+        jobs.push(() => generateCharacterOpinion(ctx, inf.id));
+      }
+    }
+    if (jobs.length) after(async () => { for (const j of jobs) await j(); });
+    // reflect the claims just made so the page shows "thinking…" straight away
+    if (jobs.length) {
+      const fresh = (await getOpinions(supabase, "month", [month.id])).get(month.id);
+      if (fresh) monthOps.set(month.id, fresh);
+    }
+  }
+  const opinions: Record<string, OpinionRow> = Object.fromEntries(await getOpinions(supabase, "character", opinionIds));
+
   const suggestions = library.map((l) => ({ name: l.name, image_key: l.image_key }));
   const allThemes = collectThemes(allMonths, library);
 
@@ -126,13 +171,23 @@ export default async function MonthPage({ params }: PageProps<"/month/[ym]">) {
         <div className="space-y-4">
           <Heading>{retro ? "Who shaped it" : "Influences"}</Heading>
           {influences.length ? (
-            <InfluenceBoard influences={influences} urls={urls} detailed={retro} themeSuggestions={allThemes} aiOn={aiConfigured()} />
+            <InfluenceBoard influences={influences} urls={urls} detailed={retro} themeSuggestions={allThemes} aiOn={aiOn} opinions={opinions} />
           ) : (
             <Empty>{retro ? "No influences here yet." : "Blank so far. Add whoever is on your mind."}</Empty>
           )}
           <AddInfluenceButton year={year} month={m} dateAdded={stamped} suggestions={suggestions} />
         </div>
       </section>
+
+      {!retro && aiOn && (
+        <section className="space-y-3">
+          <Heading>{isFutureMonth ? "Is this a good plan?" : "Is this a good month?"}</Heading>
+          <OpinionCard
+            type="month" id={month.id} row={monthOps.get(month.id)} hasContent={influences.length > 0}
+            emptyHint="Add influences and I'll tell you whether it's a good set for you."
+          />
+        </section>
+      )}
 
       {retro ? (
         <RetroEditor monthId={month.id} title={month.title} howItChanged={month.how_it_changed_me} />

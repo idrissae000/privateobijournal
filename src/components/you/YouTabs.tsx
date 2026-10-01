@@ -4,6 +4,7 @@ export const TABS = [
   { id: "sheet", label: "Character sheet" },
   { id: "arc", label: "Then vs. now" },
   { id: "foreshadow", label: "Foreshadowing" },
+  { id: "breakdowns", label: "Breakdowns" },
   { id: "fidelity", label: "Fidelity" },
   { id: "reads", label: "Daily reads" },
   { id: "traits", label: "Traits" },

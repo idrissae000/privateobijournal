@@ -68,12 +68,13 @@ export async function saveReport(
 export async function claimIfDue(
   supabase: SupabaseClient,
   kind: ReportKind,
-  opts: { intervalMs: number; force?: boolean },
+  opts: { intervalMs: number; force?: boolean; /** skip when nothing changed since the last successful run */ fingerprint?: string },
 ): Promise<boolean> {
   const r = await getReport(supabase, kind);
   if (r?.status === "pending" && age(r) < 3 * 60_000) return false;
   if (!opts.force) {
     if (r?.status === "done" && age(r) < opts.intervalMs) return false;
+    if (r?.status === "done" && opts.fingerprint && r.fingerprint === opts.fingerprint) return false; // nothing new to look at
     if (r?.status === "failed" && age(r) < 30 * 60_000) return false;
   }
   await supabase.from("ai_reports").upsert(

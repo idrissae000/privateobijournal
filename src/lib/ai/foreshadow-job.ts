@@ -1,6 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { type AiCtx, asArr, asEnum, asObj, asStr, asText, callJson } from "./client";
+import { type AiCtx, asArr, asEnum, asObj, asStr, asText, callJson, hashOf } from "./client";
 import { insightModel } from "./config";
 import { saveReport } from "./reports";
 import { getAllEntries, getAllInfluences, getAllMonths } from "@/lib/data";
@@ -62,6 +62,16 @@ export async function hasForeshadowData(supabase: SupabaseClient): Promise<boole
   return (count ?? 0) >= 6 && (infl ?? 0) >= 1;
 }
 
+/** Changes only when there are new written pages (or influences) in the window the check looks at. */
+export async function foreshadowFingerprint(supabase: SupabaseClient): Promise<string> {
+  const since = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+  const [{ data: es }, { count: infl }] = await Promise.all([
+    supabase.from("entries").select("date").gte("date", since).not("note", "is", null).order("date", { ascending: false }),
+    supabase.from("influences").select("id", { count: "exact", head: true }),
+  ]);
+  return hashOf([es?.length ?? 0, es?.[0]?.date ?? null, infl ?? 0]);
+}
+
 export async function runForeshadow(ctx: AiCtx): Promise<void> {
   const { supabase } = ctx;
   try {
@@ -79,6 +89,7 @@ export async function runForeshadow(ctx: AiCtx): Promise<void> {
     }
 
     const out = await callJson(ctx, {
+      kind: "foreshadow",
       system: SYSTEM,
       data: {
         current_month: latestMonth,
@@ -120,6 +131,7 @@ export async function runForeshadow(ctx: AiCtx): Promise<void> {
     });
     await saveReport(supabase, "foreshadow", {
       content: { items: out, model: insightModel(), entries_considered: entries.length } satisfies ForeshadowContent,
+      fingerprint: await foreshadowFingerprint(supabase),
       status: "done",
     });
   } catch {

@@ -31,6 +31,7 @@ export async function suggestTraits(ctx: AiCtx, influenceId: string): Promise<vo
 
   try {
     const out = await callJson(ctx, {
+      kind: "traits",
       system: SYSTEM,
       data: { name: inf.name, from: inf.source_note, why_it_resonates: inf.why_it_resonates, themes: inf.themes },
       task: "Suggest the traits now.",

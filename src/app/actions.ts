@@ -3,9 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getOrCreateMonth, getTz } from "@/lib/data";
+import { getOrCreateMonth, getInfluences, getToday } from "@/lib/data";
 import { aiConfigured } from "@/lib/ai/config";
 import { type AiCtx, callJson, failureReason } from "@/lib/ai/client";
+import { makeAiCtx } from "@/lib/ai/ctx";
 import { analyzeEntry, queueEntryAnalysis } from "@/lib/ai/entry-job";
 import { suggestTraits } from "@/lib/ai/traits-job";
 import { generateConclusion, queueConclusion } from "@/lib/ai/conclusion-job";
@@ -14,9 +15,12 @@ import { claimIfDue } from "@/lib/ai/reports";
 import { runForeshadow, hasForeshadowData } from "@/lib/ai/foreshadow-job";
 import { runReview } from "@/lib/ai/review-job";
 import { runCatchUpStep } from "@/lib/ai/catchup";
+import {
+  characterOpinionFingerprint, claimOpinion, generateCharacterOpinion, generateMonthOpinion, monthOpinionFingerprint,
+} from "@/lib/ai/opinion-job";
 import { normalizeTraits } from "@/lib/traits";
 import { deleteObject, isOwnKey } from "@/lib/r2";
-import { isValidDate, todayInTz } from "@/lib/dates";
+import { isValidDate, monthDiff } from "@/lib/dates";
 import { normalizeThemes } from "@/lib/themes";
 import type { Layout } from "@/lib/types";
 
@@ -33,7 +37,7 @@ const refresh = () => revalidatePath("/", "layout");
 
 /** Context for background AI jobs. Built before `after()` so request cookies are still readable. */
 async function aiCtx(supabase: Awaited<ReturnType<typeof createClient>>): Promise<AiCtx> {
-  return { supabase, day: todayInTz(await getTz()) };
+  return makeAiCtx(supabase);
 }
 
 const clean = (s: unknown, max = 5000) => (typeof s === "string" ? s.trim().slice(0, max) : "");
@@ -243,6 +247,7 @@ export async function deleteInfluence(id: string) {
   const { supabase } = await authed();
   const { error } = await supabase.from("influences").delete().eq("id", id);
   if (error) throw error;
+  await supabase.from("ai_opinions").delete().eq("subject_type", "character").eq("subject_id", id);
   refresh();
 }
 
@@ -398,6 +403,7 @@ export async function testAiConnection(): Promise<{ ok: boolean; message: string
   try {
     const ctx = await aiCtx(supabase);
     await callJson(ctx, {
+      kind: "reserve",
       system: "Task: reply with ok=true.",
       data: { ping: true },
       task: "Reply now.",
@@ -413,11 +419,58 @@ export async function testAiConnection(): Promise<{ ok: boolean; message: string
 }
 
 /** One bounded slice of "read everything from before" (about 6 items). The client calls it until nothing is left. */
-export async function catchUpStep(): Promise<{ enabled: boolean; remaining: number; processed: number; capReached: boolean }> {
+export async function catchUpStep(): Promise<{ enabled: boolean; remaining: number; processed: number; capReached: boolean; budgetReached: boolean }> {
   const { supabase } = await authed();
-  if (!aiConfigured()) return { enabled: false, remaining: 0, processed: 0, capReached: false };
+  if (!aiConfigured()) return { enabled: false, remaining: 0, processed: 0, capReached: false, budgetReached: false };
   const ctx = await aiCtx(supabase);
   const r = await runCatchUpStep(ctx, { includeFailed: true });
   refresh();
-  return { enabled: true, remaining: r.plan.total, processed: r.processed, capReached: r.capReached };
+  return { enabled: true, remaining: r.plan.total, processed: r.processed, capReached: r.capReached, budgetReached: r.budgetReached };
+}
+
+// ---------- Opinions on breakdowns ----------
+
+/** "Ask again": Claude's opinion of a month's or a character's breakdown. Counts against the opinions budget. */
+export async function askOpinion(type: "month" | "character", id: string): Promise<{ started: boolean }> {
+  const { supabase } = await authed();
+  if (!aiConfigured()) return { started: false };
+
+  if (type === "month") {
+    const { data: month } = await supabase.from("months").select("*").eq("id", id).maybeSingle();
+    if (!month) return { started: false };
+    const influences = await getInfluences(supabase, id);
+    if (!influences.length) return { started: false };
+    const ok = await claimOpinion(supabase, "month", id, { fingerprint: monthOpinionFingerprint(month, influences), force: true });
+    if (ok) {
+      const ctx = await aiCtx(supabase);
+      after(() => generateMonthOpinion(ctx, id));
+    }
+    refresh();
+    return { started: ok };
+  }
+
+  const { data: inf } = await supabase.from("influences").select("*").eq("id", id).maybeSingle();
+  if (!inf) return { started: false };
+  const { data: month } = await supabase.from("months").select("themes").eq("id", inf.month_id).maybeSingle();
+  const ok = await claimOpinion(supabase, "character", id, {
+    fingerprint: characterOpinionFingerprint(inf, (month?.themes as string[] | undefined) ?? []), force: true,
+  });
+  if (ok) {
+    const ctx = await aiCtx(supabase);
+    after(() => generateCharacterOpinion(ctx, id));
+  }
+  refresh();
+  return { started: ok };
+}
+
+/** Start a chapter ahead of time so its influences can be lined up (and judged) before it begins. */
+export async function planMonth(year: number, month: number): Promise<{ ym: string }> {
+  const { supabase } = await authed();
+  if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) throw new Error("Bad month");
+  const ym = `${year}-${String(month).padStart(2, "0")}`;
+  const nowYm = (await getToday()).slice(0, 7);
+  if (monthDiff(nowYm, ym) > 6) throw new Error("That's too far ahead to plan");
+  await getOrCreateMonth(supabase, year, month);
+  refresh();
+  return { ym };
 }

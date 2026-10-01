@@ -63,6 +63,7 @@ export async function generateConclusion(ctx: AiCtx, monthId: string): Promise<v
 
     const names = new Map(influences.map((i) => [i.id, i.name]));
     const out = await callJson(ctx, {
+      kind: "conclusions",
       system: SYSTEM,
       data: {
         month: label,

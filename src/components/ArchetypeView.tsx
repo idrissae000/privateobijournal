@@ -16,7 +16,7 @@ export function ReportStatus({ status, generatedAt, stale, note }: { status: "pe
       {note && <p className="font-type text-[11px] text-ink-soft">{note}</p>}
       <p className="font-type text-[11px] text-ink-soft">
         {status === "pending" ? "Updating with your latest pages…" : status === "failed" ? <>Couldn&apos;t refresh just now. <RegenerateArchetype /></> : `Written ${formatShortDate(generatedAt.slice(0, 10))}`}
-        {status === "done" && stale && " · newer pages are waiting; it refreshes next time you open this."}
+        {status === "done" && stale && " · newer pages are waiting; it refreshes at most once a day (or rewrite it from the Review tab)."}
       </p>
     </footer>
   );

@@ -36,6 +36,7 @@ export function CatchUpBanner({ counts }: { counts: CatchUpCounts }) {
         if (!r.enabled) { note = "Insights aren't switched on for this deployment."; break; }
         setState({ running: true, left: r.remaining, note: null });
         if (r.remaining === 0) { prev = 0; break; }
+        if (r.budgetReached) { prev = r.remaining; note = "This month's AI budget is used up. The rest waits until the 1st (or raise INSIGHT_MONTHLY_BUDGET_USD)."; break; }
         if (r.capReached) { prev = r.remaining; note = "Hit today's AI call limit. The rest continues automatically tomorrow as you use the app."; break; }
         // Two rounds in a row with nothing finished means the rest is failing: stop rather than keep spending.
         if (r.remaining >= prev) {

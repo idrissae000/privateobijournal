@@ -3,14 +3,17 @@ import { ArcWatchView, ForeshadowView, ReportStatus, SheetView } from "@/compone
 import { CatchUpBanner } from "@/components/CatchUpBanner";
 import { InsightPoller } from "@/components/InsightPoller";
 import { Empty, Heading } from "@/components/scrap";
+import { BreakdownsTab } from "@/components/you/BreakdownsTab";
 import { FidelityTab } from "@/components/you/FidelityTab";
 import { ReadsTab } from "@/components/you/ReadsTab";
 import { ReviewTab } from "@/components/you/ReviewTab";
 import { TraitsTab } from "@/components/you/TraitsTab";
 import { TABS, YouTabs, type TabId } from "@/components/you/YouTabs";
 import { checkArchetype, generateArchetype, type ArchetypeContent } from "@/lib/ai/archetype-job";
+import { budgetStatus } from "@/lib/ai/budget";
 import { catchUpPlan } from "@/lib/ai/catchup";
-import { aiConfigured } from "@/lib/ai/config";
+import { aiConfigured, usd } from "@/lib/ai/config";
+import { makeAiCtx } from "@/lib/ai/ctx";
 import type { ForeshadowContent } from "@/lib/ai/foreshadow-job";
 import { getReport } from "@/lib/ai/reports";
 import { getToday, requireUser } from "@/lib/data";
@@ -26,7 +29,7 @@ export default async function YouPage({ searchParams }: PageProps<"/archetype">)
   // The character sheet quietly refreshes itself (in the background) when you look at it and it's out of date.
   const state = tab === "sheet" || tab === "arc" ? await checkArchetype(supabase, aiOn) : null;
   if (state?.shouldRun) {
-    const ctx = { supabase, day: today };
+    const ctx = await makeAiCtx(supabase);
     after(() => generateArchetype(ctx));
   }
   const archetype = state?.report ?? (await getReport<ArchetypeContent>(supabase, "archetype"));
@@ -39,6 +42,9 @@ export default async function YouPage({ searchParams }: PageProps<"/archetype">)
     supabase.from("ai_flags").select("id", { count: "exact", head: true }).eq("status", "open"),
     supabase.from("influences").select("id", { count: "exact", head: true }).eq("traits_status", "suggested"),
   ]);
+
+  const budget = aiOn ? await budgetStatus(supabase, today.slice(0, 7)) : null;
+  const budgetUsed = budget ? budget.spent / budget.limit : 0;
 
   const off = (
     <div className="paper-card space-y-1 p-4">
@@ -75,6 +81,8 @@ export default async function YouPage({ searchParams }: PageProps<"/archetype">)
     );
   } else if (tab === "foreshadow") {
     body = !aiOn ? off : <ForeshadowView foreshadow={foreshadow?.content ?? null} />;
+  } else if (tab === "breakdowns") {
+    body = <BreakdownsTab supabase={supabase} aiOn={aiOn} />;
   } else if (tab === "fidelity") {
     body = <FidelityTab supabase={supabase} aiOn={aiOn} />;
   } else if (tab === "reads") {
@@ -91,6 +99,16 @@ export default async function YouPage({ searchParams }: PageProps<"/archetype">)
         <Heading>You, so far</Heading>
         <p className="font-hand mt-2 text-xl text-ink-soft">What your pages add up to. It updates itself as you write.</p>
       </div>
+
+      {budget && budgetUsed >= 0.8 && (
+        <div role="status" className="paper-card p-3">
+          <p className="font-type text-xs">
+            {budgetUsed >= 1
+              ? `This month's AI budget is used up (${usd(budget.spent)}). Insights pause until next month.`
+              : `Heads up: ${usd(budget.spent)} of this month's ${usd(budget.budget)} AI budget is used.`}
+          </p>
+        </div>
+      )}
 
       {plan && plan.total > 0 && (
         <CatchUpBanner

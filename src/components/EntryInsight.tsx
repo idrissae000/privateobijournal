@@ -14,7 +14,7 @@ function isStalePending(at: string | null): boolean {
 /** The app's quiet read on a saved entry: a pinned margin note, written in the background. */
 export function EntryInsight({ entry, influences }: { entry: Entry; influences: Influence[] }) {
   const status = entry.insight_status;
-  if (status === "none" || status === "skipped") return null;
+  if (status === "skipped" || (status === "none" && !entry.insight)) return null;
 
   const stalePending = status === "pending" && isStalePending(entry.insight_at);
 
@@ -41,7 +41,7 @@ export function EntryInsight({ entry, influences }: { entry: Entry; influences: 
     <aside className="paper-card relative rotate-[0.8deg] space-y-2 px-4 pb-4 pt-5" aria-label="The app's read on this entry">
       <Tape className="-top-3 left-8 -rotate-3" />
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-type text-[10px] uppercase tracking-wider text-ink-soft">the app&apos;s read</span>
+        <span className="font-type text-[10px] uppercase tracking-wider text-ink-soft">the app&apos;s read{status === "none" ? " · refreshing in a few minutes" : ""}</span>
         {entry.character_score != null && (
           <span className="stamp text-[11px]" style={{ transform: "rotate(-3deg)" }}>in character {entry.character_score}/10</span>
         )}

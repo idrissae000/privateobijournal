@@ -6,7 +6,9 @@ import { deleteInfluence, updateInfluence } from "@/app/actions";
 import { ImageSlot } from "@/components/ImageSlot";
 import { InsightPoller } from "@/components/InsightPoller";
 import { ThemeEditor } from "@/components/ThemeEditor";
+import { CharacterOpinionPanel } from "@/components/CharacterOpinionPanel";
 import { TraitsPanel } from "@/components/TraitsPanel";
+import { VERDICT_LABEL, type OpinionRow } from "@/lib/opinion";
 import { useScrollLock } from "@/lib/useScrollLock";
 import { Frame, Tag } from "@/components/scrap";
 import { hash } from "@/lib/collage";
@@ -22,10 +24,12 @@ type Props = {
   themeSuggestions?: string[];
   /** AI insights are switched on for this deployment */
   aiOn?: boolean;
+  /** Claude's opinion of each character's breakdown, by influence id */
+  opinions?: Record<string, OpinionRow>;
 };
 
 /** The evolving mood board: every influence added this month as a taped polaroid. */
-export function InfluenceBoard({ influences, urls, detailed = false, themeSuggestions = [], aiOn = false }: Props) {
+export function InfluenceBoard({ influences, urls, detailed = false, themeSuggestions = [], aiOn = false, opinions = {} }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   // always the live row, so a refresh (e.g. traits arriving) shows up inside an open editor
   const editing = influences.find((i) => i.id === editingId) ?? null;
@@ -34,7 +38,7 @@ export function InfluenceBoard({ influences, urls, detailed = false, themeSugges
 
   return (
     <>
-      <InsightPoller active={influences.some((i) => i.traits_status === "pending")} />
+      <InsightPoller active={influences.some((i) => i.traits_status === "pending" || opinions[i.id]?.status === "pending")} />
       <ul className={detailed ? "space-y-8" : "grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3"}>
         {influences.map((inf) => {
           const rot = (hash(inf.id) - 0.5) * 9;
@@ -56,6 +60,7 @@ export function InfluenceBoard({ influences, urls, detailed = false, themeSugges
                 {inf.source_note && <p className="font-type text-xs text-ink-soft">{inf.source_note}</p>}
                 <p className="font-hand text-lg leading-none text-stamp/80">added {formatShortDate(inf.date_added)}</p>
                 {(inf.traits ?? []).length > 0 && <p className="font-type text-[11px] text-ink-soft">{inf.traits.join(" · ")}</p>}
+                {opinions[inf.id]?.content?.verdict && <p className="font-type text-[11px] text-ink-soft">opinion: {VERDICT_LABEL[opinions[inf.id].content.verdict!]}</p>}
                 {inf.traits_status === "suggested" && <p className="font-hand text-lg leading-none text-stamp">✨ traits ready to review</p>}
                 {inf.traits_status === "pending" && <p className="font-hand animate-pulse text-lg leading-none text-ink-soft">thinking…</p>}
                 {detailed && (inf.themes ?? []).length > 0 && (
@@ -71,12 +76,12 @@ export function InfluenceBoard({ influences, urls, detailed = false, themeSugges
           );
         })}
       </ul>
-      {editing && <InfluenceEditor key={editing.id} influence={editing} url={editing.image_key ? urls[editing.image_key] : null} themeSuggestions={themeSuggestions} aiOn={aiOn} onClose={() => setEditingId(null)} />}
+      {editing && <InfluenceEditor key={editing.id} influence={editing} url={editing.image_key ? urls[editing.image_key] : null} themeSuggestions={themeSuggestions} aiOn={aiOn} opinion={opinions[editing.id]} onClose={() => setEditingId(null)} />}
     </>
   );
 }
 
-function InfluenceEditor({ influence, url, themeSuggestions, aiOn, onClose }: { influence: Influence; url: string | null; themeSuggestions: string[]; aiOn: boolean; onClose: () => void }) {
+function InfluenceEditor({ influence, url, themeSuggestions, aiOn, opinion, onClose }: { influence: Influence; url: string | null; themeSuggestions: string[]; aiOn: boolean; opinion: OpinionRow | undefined; onClose: () => void }) {
   const router = useRouter();
   const [name, setName] = useState(influence.name);
   const [source, setSource] = useState(influence.source_note ?? "");
@@ -141,6 +146,7 @@ function InfluenceEditor({ influence, url, themeSuggestions, aiOn, onClose }: { 
         </div>
       </form>
       <TraitsPanel key={influence.id} influence={influence} aiOn={aiOn} />
+      <CharacterOpinionPanel influenceId={influence.id} row={opinion} aiOn={aiOn} />
       </div>
     </div>
   );

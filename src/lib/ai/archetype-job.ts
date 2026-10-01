@@ -25,7 +25,8 @@ export type ArchetypeContent = {
   model?: string;
 };
 
-const MIN_GAP_MS = 5 * 60_000;
+/** The character sheet reads the whole journal, so it refreshes at most once a day (the first one is immediate). */
+const MIN_GAP_MS = 24 * 60 * 60_000;
 
 const SCHEMA = {
   type: "object",
@@ -200,6 +201,7 @@ export async function generateArchetype(ctx: AiCtx): Promise<void> {
     const known = new Set(input.months.map((m) => m.ym));
 
     const content = await callJson(ctx, {
+      kind: "sheet",
       system: SYSTEM,
       data: { chapters: input.months },
       task: "Write the character sheet now.",

@@ -18,6 +18,7 @@ Copy `.env.example` to `.env.local` (local) and add the same names in Vercel →
 | `ANTHROPIC_API_KEY` | *Optional.* Turns on the insight layer (see below). Without it everything else works and the insight UI stays quiet |
 | `INSIGHT_MODEL` | *Optional.* Defaults to `claude-sonnet-5`. Use `claude-opus-5-5` for the most capable reading |
 | `INSIGHT_DAILY_CALL_LIMIT` | *Optional.* Max Claude calls per day (default 60), enforced in the database |
+| `INSIGHT_MONTHLY_BUDGET_USD` | *Optional.* Hard monthly spending cap for Claude calls (default 5). The app reserves cost before each call, stops at 95%, and shows the books on the You → Review tab |
 | `BRAVE_SEARCH_API_KEY` | *Optional.* Turns on web image search (Brave Search API). Without it, pasting an image link still works |
 
 `NEXT_PUBLIC_*` values are baked in at build time: redeploy after changing them.

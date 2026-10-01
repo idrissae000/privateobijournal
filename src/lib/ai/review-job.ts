@@ -1,4 +1,5 @@
 import "server-only";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { type AiCtx, asArr, asEnum, asObj, asStr, asText, callJson, hashOf } from "./client";
 import { insightModel } from "./config";
 import { saveReport } from "./reports";
@@ -49,6 +50,15 @@ Look for:
 Be conservative: report only what you'd bet on. Quote exact names. For a flag about a specific influence or month, set target_id to its id from the data and target_type accordingly;
 for theme tags or anything cross-cutting use target_type "theme" or "general" and target_id "". 0 to 8 flags; an empty list is a fine answer.`;
 
+/** Changes only when the structure being reviewed (months, influences, traits, themes, notes) changes. */
+export async function reviewFingerprint(supabase: SupabaseClient): Promise<string> {
+  const [months, influences] = await Promise.all([getAllMonths(supabase), getAllInfluences(supabase)]);
+  return hashOf([
+    months.map((m) => [m.id, m.title, m.themes, !!m.sealed_at, m.month_end_reflection?.length ?? 0, m.how_it_changed_me?.length ?? 0]),
+    influences.map((i) => [i.id, i.name, i.source_note, i.themes, effectiveTraits(i).traits, i.why_it_resonates?.length ?? 0]),
+  ]);
+}
+
 export async function runReview(ctx: AiCtx): Promise<void> {
   const { supabase } = ctx;
   try {
@@ -61,6 +71,7 @@ export async function runReview(ctx: AiCtx): Promise<void> {
     }
 
     const flags = await callJson(ctx, {
+      kind: "review",
       system: SYSTEM,
       data: {
         months: months.map((m) => ({
@@ -102,7 +113,11 @@ export async function runReview(ctx: AiCtx): Promise<void> {
         { onConflict: "user_id,dedupe_key", ignoreDuplicates: true },
       );
     }
-    await saveReport(supabase, "review", { content: { flags_found: flags.length, model: insightModel() }, status: "done" });
+    await saveReport(supabase, "review", {
+      content: { flags_found: flags.length, model: insightModel() },
+      fingerprint: await reviewFingerprint(supabase),
+      status: "done",
+    });
   } catch {
     await saveReport(supabase, "review", { status: "failed" });
   }
