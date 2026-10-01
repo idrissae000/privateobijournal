@@ -230,7 +230,8 @@ export async function generateArchetype(ctx: AiCtx): Promise<void> {
                 note: asStr(x.note, 260),
               };
             })
-            .filter((t) => t.theme),
+            // "recurring" means it showed up in at least two real chapters
+            .filter((t) => t.theme && t.months.length >= 2),
           // the model proposes pairs; we enforce the rules: real months, at least 2 apart, then before now
           arc_watch: asArr(o.arc_watch, 4)
             .map((p) => {

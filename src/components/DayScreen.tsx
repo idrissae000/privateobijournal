@@ -4,13 +4,15 @@ import { EntryPanel } from "@/components/EntryPanel";
 import { AddInfluenceButton } from "@/components/AddInfluence";
 import { Collage } from "@/components/Collage";
 import { EntryInsight } from "@/components/EntryInsight";
+import { Alerts } from "@/components/Alerts";
 import { Heading, Stamp, Tag, Tape } from "@/components/scrap";
 import {
-  getAllInfluences, getEntryByDate, getInfluences, getPhotosForEntries, getToday, isGalleryPhoto,
+  getAllInfluences, getEntries, getEntryByDate, getInfluences, getPhotosForEntries, getToday, isGalleryPhoto,
   requireUser, signKeys,
 } from "@/lib/data";
 import { formatLongDate, monthLabel } from "@/lib/dates";
 import { ratingColor, ratingInk } from "@/lib/stats";
+import { computeAlerts } from "@/lib/alerts";
 
 const shift = (date: string, days: number) => {
   const d = new Date(`${date}T00:00:00Z`);
@@ -34,6 +36,18 @@ export async function DayScreen({ date }: { date: string }) {
     getAllInfluences(supabase),
     entry ? getPhotosForEntries(supabase, [entry.id]) : Promise.resolve([]),
   ]);
+
+  // Gentle nudges, only on today's page
+  let alerts: ReturnType<typeof computeAlerts> = [];
+  if (date === today) {
+    const [monthEntries, { data: last }] = await Promise.all([
+      monthRow ? getEntries(supabase, monthRow.id) : Promise.resolve([]),
+      supabase.from("entries").select("date").order("date", { ascending: false }).limit(1),
+    ]);
+    alerts = computeAlerts({
+      today, entries: monthEntries, lastEntryDate: (last?.[0]?.date as string | undefined) ?? null, monthName: monthLabel(year, month).split(" ")[0],
+    });
+  }
 
   const gallery = photos.filter(isGalleryPhoto);
   const hasProgress = photos.some((p) => p.is_progress_photo);
@@ -60,6 +74,8 @@ export async function DayScreen({ date }: { date: string }) {
           <Link href="/settings" aria-label="Settings" className="font-type flex h-11 w-11 items-center justify-center text-lg">⚙</Link>
         </div>
       </header>
+
+      <Alerts alerts={alerts} />
 
       {/* The page itself */}
       <section className="paper-card relative -rotate-[0.6deg] p-5 pt-7">

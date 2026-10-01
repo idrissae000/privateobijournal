@@ -9,6 +9,7 @@ const icons = {
   timeline: "M12 3v18M12 7h6M12 12H6M12 17h6",
   library: "M5 4h4v16H5zM10 4h4v16h-4zM15.5 5.5l3.8-1 2 15-3.8 1z",
   progress: "M4 18l5-6 4 3 7-9M16 6h4v4",
+  you: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c0-4 3.6-7 8-7s8 3 8 7",
 };
 
 export function Nav({ monthHref }: { monthHref: string }) {
@@ -19,6 +20,7 @@ export function Nav({ monthHref }: { monthHref: string }) {
     { href: "/timeline", label: "Timeline", icon: icons.timeline, active: path.startsWith("/timeline") },
     { href: "/library", label: "Library", icon: icons.library, active: path.startsWith("/library") },
     { href: "/progress", label: "Progress", icon: icons.progress, active: path.startsWith("/progress") },
+    { href: "/archetype", label: "You", icon: icons.you, active: path.startsWith("/archetype") || path.startsWith("/admin") },
   ];
   return (
     <nav

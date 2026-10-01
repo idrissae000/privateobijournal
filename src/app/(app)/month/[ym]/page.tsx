@@ -5,6 +5,8 @@ import { CalendarGrid } from "@/components/CalendarGrid";
 import { InfluenceBoard } from "@/components/InfluenceBoard";
 import { MonthCoverPhoto } from "@/components/MonthCoverPhoto";
 import { MonthThemes } from "@/components/MonthThemes";
+import { FidelitySection } from "@/components/Fidelity";
+import { MonthConclusion } from "@/components/MonthConclusion";
 import { RetroEditor } from "@/components/RetroEditor";
 import { SealPanel } from "@/components/SealPanel";
 import { WeightChart } from "@/components/WeightChart";
@@ -17,6 +19,7 @@ import {
   dayKey, daysInMonth, formatShortDate, monthLabel, nextYm, parseYm, prevYm, ymKey,
 } from "@/lib/dates";
 import { computeStats, fmt1 } from "@/lib/stats";
+import { avgCharacterScore, computeFidelity } from "@/lib/fidelity";
 import { collectThemes, sharedThemes } from "@/lib/themes";
 import { aiConfigured } from "@/lib/ai/config";
 import type { Month } from "@/lib/types";
@@ -87,6 +90,8 @@ export default async function MonthPage({ params }: PageProps<"/month/[ym]">) {
   ]);
 
   const stats = computeStats(entries, influences);
+  const fidelity = computeFidelity(entries, influences);
+  const aiOn = aiConfigured();
   const weights = entries.filter((e) => e.weigh_in != null).map((e) => ({ date: e.date, value: Number(e.weigh_in) }));
   const lastDay = dayKey(year, m, daysInMonth(year, m));
   const due = !retro && today >= lastDay;
@@ -142,9 +147,11 @@ export default async function MonthPage({ params }: PageProps<"/month/[ym]">) {
                 {stats.ratedDays
                   ? `Average ${fmt1(stats.avg)} overall · ${fmt1(stats.taggedAvg)} on days with an influence tagged`
                   : "No rated days this month."}
+                {avgCharacterScore(entries) != null && ` · ${fmt1(avgCharacterScore(entries))} average in-character`}
               </p>
             </SealPanel>
           )}
+          {month.sealed_at && <MonthConclusion month={month} />}
 
           <section className="space-y-3">
             <Heading>The month</Heading>
@@ -196,6 +203,13 @@ export default async function MonthPage({ params }: PageProps<"/month/[ym]">) {
               <Empty>Rate a day and the numbers show up here.</Empty>
             )}
           </section>
+
+          {influences.length > 0 && (
+            <section className="space-y-3">
+              <Heading>Fidelity</Heading>
+              <FidelitySection fidelity={fidelity} entries={entries} aiOn={aiOn} />
+            </section>
+          )}
 
           {gallery.length > 0 && (
             <section className="space-y-3">

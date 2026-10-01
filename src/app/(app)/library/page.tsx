@@ -1,11 +1,20 @@
 import { LibraryList, type LibraryItem, type ThemeGroup } from "@/components/LibraryList";
 import { Heading } from "@/components/scrap";
 import { getAllInfluences, getAllMonths, requireUser, signKeys } from "@/lib/data";
+import { fidelityLabel } from "@/lib/fidelity";
 import { monthLabel, ymKey } from "@/lib/dates";
 
 export default async function LibraryPage() {
   const { supabase } = await requireUser();
-  const [influences, months] = await Promise.all([getAllInfluences(supabase), getAllMonths(supabase)]);
+  const [influences, months, { data: scoreRows }] = await Promise.all([
+    getAllInfluences(supabase),
+    getAllMonths(supabase),
+    supabase.from("entry_influence_scores").select("influence_id,score"),
+  ]);
+  const scoresByInfluence = new Map<string, number[]>();
+  for (const r of (scoreRows ?? []) as { influence_id: string; score: number }[]) {
+    scoresByInfluence.set(r.influence_id, [...(scoresByInfluence.get(r.influence_id) ?? []), r.score]);
+  }
   const monthById = new Map(months.map((m) => [m.id, m]));
 
   // Same name (case-insensitive) in several months = one recurring character.
@@ -29,6 +38,11 @@ export default async function LibraryPage() {
       imageKey: latestWithImage?.image_key ?? null,
       sources: [...new Set(list.map((i) => i.source_note).filter((s): s is string => !!s))],
       why: latestWhy?.why_it_resonates ?? null,
+      fidelity: (() => {
+        const xs = list.flatMap((i) => scoresByInfluence.get(i.id) ?? []);
+        const avg = xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
+        return { avg, days: xs.length, label: fidelityLabel(avg, xs.length) };
+      })(),
       themes: [...new Map(list.flatMap((i) => i.themes ?? []).map((t) => [t.toLowerCase(), t])).values()],
       months: [...seen.values()].sort((a, b) => a.ym.localeCompare(b.ym)),
     };

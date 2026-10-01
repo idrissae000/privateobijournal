@@ -14,6 +14,8 @@ export type LibraryItem = {
   /** months this character appeared in, oldest first */
   months: { ym: string; label: string }[];
   themes: string[];
+  /** how truly this character was lived, across every month they appeared in */
+  fidelity: { avg: number | null; days: number; label: "lived" | "partly" | "not" | "early" | "none" };
 };
 
 export type ThemeGroup = {
@@ -130,6 +132,11 @@ export function LibraryList({ items, themeGroups }: { items: LibraryItem[]; them
                   <p className="font-hand text-3xl leading-none">{i.name}</p>
                   {i.months.length > 1 && <Stamp rotate={-3} className="text-[10px]">×{i.months.length} months</Stamp>}
                 </div>
+                {i.fidelity.avg != null && i.fidelity.days >= 3 && (
+                  <p className="font-type text-[11px] text-ink-soft">
+                    lived up to {i.fidelity.avg.toFixed(1)}/10 · {i.fidelity.days} days scored{i.months.length > 1 ? ` across ${i.months.length} months` : ""}
+                  </p>
+                )}
                 {i.sources.length > 0 && <p className="font-type text-xs text-ink-soft">{i.sources.join(" · ")}</p>}
                 {i.themes.length > 0 && <p className="font-hand text-lg leading-tight text-stamp/80">{i.themes.map((t) => `#${t}`).join(" ")}</p>}
                 {i.why && <p className="font-hand line-clamp-3 text-lg leading-snug">{i.why}</p>}
