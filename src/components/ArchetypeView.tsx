@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { RegenerateArchetype } from "@/components/ArchetypeActions";
-import { InsightPoller } from "@/components/InsightPoller";
 import { Heading, Stamp, Tag, Tape } from "@/components/scrap";
 import type { ArchetypeContent } from "@/lib/ai/archetype-job";
 import type { ForeshadowContent, ForeshadowItem } from "@/lib/ai/foreshadow-job";
@@ -11,22 +10,22 @@ const ymLabel = (ym: string) => {
   return p ? monthLabel(p.year, p.month) : ym;
 };
 
-export function ArchetypeView({
-  content, status, generatedAt, stale, foreshadow,
-}: {
-  content: ArchetypeContent;
-  status: "pending" | "done" | "failed";
-  generatedAt: string;
-  stale: boolean;
-  foreshadow: ForeshadowContent | null;
-}) {
-  const watch = content.arc_watch ?? [];
-  const items = foreshadow?.items ?? [];
+export function ReportStatus({ status, generatedAt, stale, note }: { status: "pending" | "done" | "failed"; generatedAt: string; stale?: boolean; note?: string }) {
+  return (
+    <footer className="space-y-1 text-center">
+      {note && <p className="font-type text-[11px] text-ink-soft">{note}</p>}
+      <p className="font-type text-[11px] text-ink-soft">
+        {status === "pending" ? "Updating with your latest pages…" : status === "failed" ? <>Couldn&apos;t refresh just now. <RegenerateArchetype /></> : `Written ${formatShortDate(generatedAt.slice(0, 10))}`}
+        {status === "done" && stale && " · newer pages are waiting; it refreshes next time you open this."}
+      </p>
+    </footer>
+  );
+}
 
+/** Tab: the character sheet itself plus recurring themes. */
+export function SheetView({ content }: { content: ArchetypeContent }) {
   return (
     <div className="space-y-8">
-      <InsightPoller active={status === "pending"} />
-
       <section className="paper-card relative space-y-4 p-5 pt-7">
         <Tape className="-top-3 left-8 -rotate-6" />
         <Tape className="-top-3 right-8 rotate-6" />
@@ -68,51 +67,59 @@ export function ArchetypeView({
           </ul>
         </section>
       )}
-
-      <section className="space-y-3" aria-label="Arc watch">
-        <Heading>Then vs. now</Heading>
-        {watch.length === 0 ? (
-          <p className="font-hand text-xl text-ink-soft">
-            Nothing to compare yet. This lights up when the same theme returns months apart with a different stance.
-          </p>
-        ) : (
-          <ul className="space-y-5">
-            {watch.map((w) => (
-              <li key={`${w.theme}-${w.then.ym}-${w.now.ym}`} className="paper-card space-y-3 p-4">
-                <p className="font-hand text-3xl leading-none">{w.theme}</p>
-                <div className="grid grid-cols-2 gap-3">
-                  {([["then", w.then], ["now", w.now]] as const).map(([k, side]) => (
-                    <div key={k} className={`space-y-1 rounded p-2 ${k === "then" ? "-rotate-1 bg-paper-2/70" : "rotate-1 bg-paper-2"}`}>
-                      <Link href={`/month/${side.ym}`} className="font-type text-[10px] uppercase tracking-wider underline">{k} · {ymLabel(side.ym)}</Link>
-                      <p className="font-hand text-xl leading-tight">{side.stance}</p>
-                      {side.evidence && <p className="font-type text-[11px] italic text-ink-soft">&ldquo;{side.evidence}&rdquo;</p>}
-                    </div>
-                  ))}
-                </div>
-                <p className="font-hand text-xl leading-snug">{w.comparison}</p>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      {items.length > 0 && (
-        <section className="space-y-3" aria-label="Foreshadowing">
-          <Heading>Before you named it</Heading>
-          <ul className="space-y-3">
-            {items.map((it) => <ForeshadowCard key={`${it.kind}-${it.title}`} item={it} />)}
-          </ul>
-        </section>
-      )}
-
-      <footer className="space-y-1 text-center">
-        {content.data_note && <p className="font-type text-[11px] text-ink-soft">{content.data_note}</p>}
-        <p className="font-type text-[11px] text-ink-soft">
-          {status === "pending" ? "Updating with your latest pages…" : status === "failed" ? <>Couldn&apos;t refresh just now. <RegenerateArchetype /></> : `Written ${formatShortDate(generatedAt.slice(0, 10))}`}
-          {status === "done" && stale && " · newer pages are waiting; it refreshes next time you open this."}
-        </p>
-      </footer>
     </div>
+  );
+}
+
+/** Tab: Arc Watch, the same theme in non-adjacent months with a different stance. */
+export function ArcWatchView({ content }: { content: ArchetypeContent | null }) {
+  const watch = content?.arc_watch ?? [];
+  return (
+    <section className="space-y-4" aria-label="Arc watch">
+      <p className="font-hand text-xl text-ink-soft">When the same subject comes back months apart and you&apos;ve changed your mind about it, it shows up here.</p>
+      {watch.length === 0 ? (
+        <p className="paper-card p-4 font-hand text-xl text-ink-soft">
+          Nothing to compare yet. This needs the same theme in two chapters at least two months apart, with a clearly different stance.
+        </p>
+      ) : (
+        <ul className="space-y-5">
+          {watch.map((w) => (
+            <li key={`${w.theme}-${w.then.ym}-${w.now.ym}`} className="paper-card space-y-3 p-4">
+              <p className="font-hand text-3xl leading-none">{w.theme}</p>
+              <div className="grid grid-cols-2 gap-3">
+                {([["then", w.then], ["now", w.now]] as const).map(([k, side]) => (
+                  <div key={k} className={`space-y-1 rounded p-2 ${k === "then" ? "-rotate-1 bg-paper-2/70" : "rotate-1 bg-paper-2"}`}>
+                    <Link href={`/month/${side.ym}`} className="font-type text-[10px] uppercase tracking-wider underline">{k} · {ymLabel(side.ym)}</Link>
+                    <p className="font-hand text-xl leading-tight">{side.stance}</p>
+                    {side.evidence && <p className="font-type text-[11px] italic text-ink-soft">&ldquo;{side.evidence}&rdquo;</p>}
+                  </div>
+                ))}
+              </div>
+              <p className="font-hand text-xl leading-snug">{w.comparison}</p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/** Tab: foreshadowing, entries that sound like an influence before you named it. */
+export function ForeshadowView({ foreshadow }: { foreshadow: ForeshadowContent | null }) {
+  const items = foreshadow?.items ?? [];
+  return (
+    <section className="space-y-4" aria-label="Foreshadowing">
+      <p className="font-hand text-xl text-ink-soft">Patterns in your pages that echo an influence, before (or without) you naming it. Checked every few days.</p>
+      {items.length === 0 ? (
+        <p className="paper-card p-4 font-hand text-xl text-ink-soft">
+          {foreshadow ? "Nothing convincing right now. It only reports patterns backed by at least two separate pages." : "Hasn't run yet. It needs about six written pages in the last month."}
+        </p>
+      ) : (
+        <ul className="space-y-3">
+          {items.map((it) => <ForeshadowCard key={`${it.kind}-${it.title}`} item={it} />)}
+        </ul>
+      )}
+    </section>
   );
 }
 

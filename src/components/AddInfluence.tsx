@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { addInfluence } from "@/app/actions";
 import { ImageSlot } from "@/components/ImageSlot";
+import { useScrollLock } from "@/lib/useScrollLock";
 
 export type Suggestion = { name: string; image_key: string | null };
 
@@ -26,6 +27,7 @@ export function AddInfluenceButton({
   const [source, setSource] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  useScrollLock(open);
 
   function reset() {
     setName(""); setImageKey(null); setWhy(""); setSource(""); setError(null);
@@ -58,7 +60,7 @@ export function AddInfluenceButton({
           <form
             onSubmit={submit}
             onClick={(e) => e.stopPropagation()}
-            className="safe-bottom paper-card mx-auto max-h-[92dvh] w-full max-w-xl space-y-4 overflow-y-auto rounded-t-xl p-5"
+            className="safe-bottom paper-card mx-auto max-h-[92dvh] w-full max-w-xl space-y-4 overflow-y-auto overscroll-contain rounded-t-xl p-5"
           >
             <div className="flex items-center justify-between">
               <h2 className="font-hand text-3xl">Add an influence</h2>

@@ -13,6 +13,7 @@ import { generateArchetype } from "@/lib/ai/archetype-job";
 import { claimIfDue } from "@/lib/ai/reports";
 import { runForeshadow, hasForeshadowData } from "@/lib/ai/foreshadow-job";
 import { runReview } from "@/lib/ai/review-job";
+import { runCatchUpStep } from "@/lib/ai/catchup";
 import { normalizeTraits } from "@/lib/traits";
 import { deleteObject, isOwnKey } from "@/lib/r2";
 import { isValidDate, todayInTz } from "@/lib/dates";
@@ -329,7 +330,7 @@ export async function discardTraits(id: string) {
   const { data } = await supabase.from("influences").select("traits").eq("id", id).maybeSingle();
   const { error } = await supabase
     .from("influences")
-    .update({ suggested_traits: [], traits_status: (data?.traits as string[] | undefined)?.length ? "done" : "none" })
+    .update({ suggested_traits: [], traits_status: (data?.traits as string[] | undefined)?.length ? "done" : "declined" })
     .eq("id", id);
   if (error) throw error;
   refresh();
@@ -409,4 +410,14 @@ export async function testAiConnection(): Promise<{ ok: boolean; message: string
   } catch (e) {
     return { ok: false, message: `Couldn't connect: ${failureReason(e)}.` };
   }
+}
+
+/** One bounded slice of "read everything from before" (about 6 items). The client calls it until nothing is left. */
+export async function catchUpStep(): Promise<{ enabled: boolean; remaining: number; processed: number; capReached: boolean }> {
+  const { supabase } = await authed();
+  if (!aiConfigured()) return { enabled: false, remaining: 0, processed: 0, capReached: false };
+  const ctx = await aiCtx(supabase);
+  const r = await runCatchUpStep(ctx, { includeFailed: true });
+  refresh();
+  return { enabled: true, remaining: r.plan.total, processed: r.processed, capReached: r.capReached };
 }

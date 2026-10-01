@@ -66,6 +66,12 @@ The app reflects back at you automatically, in the background, as part of normal
 | Accuracy pass (duplicate characters, theme variants, shaky facts) | weekly, when you open Today, or on demand at `/admin`. It only raises flags |
 | Drift / gap notes | computed on Today, dismissible, no notifications |
 
+Where to find things: the **You** tab has seven sections: Character sheet, Then vs. now (Arc Watch), Foreshadowing,
+Fidelity, Daily reads, Traits and Review (status, flags, on-demand runs, connection test). Fidelity per month is also on
+each month page, the daily read on each day page, and the gentle notes at the top of Today. Pages that existed before the
+insight layer was switched on are read automatically (a few per visit to Today, bounded by the daily cap), or all at once
+with the **Read them now** button on the You tab.
+
 Rules it follows: AI output is stored in its own columns/tables and never overwrites what you wrote; every job is
 skipped quietly if there's no key, the daily cap is hit, or the model declines; jobs use `after()` so saving never waits
 on Claude. Requests use structured JSON output, effort tuned per job, and (on models that support it) the server-side refusal fallback. Your

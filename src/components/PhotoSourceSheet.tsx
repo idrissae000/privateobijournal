@@ -1,6 +1,7 @@
 "use client";
 
 import { createPortal } from "react-dom";
+import { useScrollLock } from "@/lib/useScrollLock";
 
 /** "Where is the photo coming from?" Camera, photo library, or the web. */
 export function PhotoSourceSheet({
@@ -11,6 +12,7 @@ export function PhotoSourceSheet({
   onSearch: () => void;
   onClose: () => void;
 }) {
+  useScrollLock(true);
   const options = [
     { label: "Choose from my photo library", icon: "🖼", run: onLibrary },
     { label: "Take a photo", icon: "📷", run: onCamera },

@@ -72,6 +72,15 @@ export async function callJson<T>(ctx: AiCtx, o: CallOptions<T>): Promise<T> {
   return o.parse(JSON.parse(block.text));
 }
 
+/**
+ * What status a failed/skipped job should leave behind. Hitting the daily cap is temporary, so the item goes back to
+ * "none" (catch-up picks it up tomorrow); a refusal is final ("skipped"); anything else is "failed" (retry link).
+ */
+export function skipStatus(e: unknown): "none" | "skipped" | "failed" {
+  if (e instanceof AiSkipped) return e.reason === "cap" ? "none" : "skipped";
+  return "failed";
+}
+
 /** A short, user-safe reason for a failed job (never the raw error). */
 export function failureReason(e: unknown): string {
   if (e instanceof AiSkipped) {

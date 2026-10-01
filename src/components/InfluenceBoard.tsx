@@ -7,6 +7,7 @@ import { ImageSlot } from "@/components/ImageSlot";
 import { InsightPoller } from "@/components/InsightPoller";
 import { ThemeEditor } from "@/components/ThemeEditor";
 import { TraitsPanel } from "@/components/TraitsPanel";
+import { useScrollLock } from "@/lib/useScrollLock";
 import { Frame, Tag } from "@/components/scrap";
 import { hash } from "@/lib/collage";
 import { formatShortDate } from "@/lib/dates";
@@ -84,6 +85,7 @@ function InfluenceEditor({ influence, url, themeSuggestions, aiOn, onClose }: { 
   const [themes, setThemes] = useState<string[]>(influence.themes ?? []);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  useScrollLock(true);
 
   function save(e: React.FormEvent) {
     e.preventDefault();
@@ -111,7 +113,7 @@ function InfluenceEditor({ influence, url, themeSuggestions, aiOn, onClose }: { 
     <div className="fixed inset-0 z-50 flex items-end bg-black/40" onClick={onClose}>
       <div
         onClick={(e) => e.stopPropagation()}
-        className="safe-bottom paper-card mx-auto max-h-[92dvh] w-full max-w-xl space-y-5 overflow-y-auto rounded-t-xl p-5"
+        className="safe-bottom paper-card mx-auto max-h-[92dvh] w-full max-w-xl space-y-5 overflow-y-auto overscroll-contain rounded-t-xl p-5"
       >
       <form onSubmit={save} className="space-y-4">
         <div className="flex items-center justify-between">

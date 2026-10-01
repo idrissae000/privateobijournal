@@ -1,5 +1,5 @@
 import "server-only";
-import { type AiCtx, AiSkipped, asArr, asEnum, asObj, asStr, callJson } from "./client";
+import { type AiCtx, skipStatus, asArr, asEnum, asObj, asStr, callJson } from "./client";
 import { normalizeTraits } from "@/lib/traits";
 
 const SCHEMA = {
@@ -52,7 +52,7 @@ export async function suggestTraits(ctx: AiCtx, influenceId: string): Promise<vo
   } catch (e) {
     await supabase
       .from("influences")
-      .update({ traits_status: e instanceof AiSkipped ? "skipped" : "failed" })
+      .update({ traits_status: skipStatus(e) })
       .eq("id", influenceId)
       .eq("traits_status", "pending");
   }

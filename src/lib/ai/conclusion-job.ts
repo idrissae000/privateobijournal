@@ -1,6 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { type AiCtx, AiSkipped, asEnum, asObj, asText, callJson } from "./client";
+import { type AiCtx, skipStatus, asEnum, asObj, asText, callJson } from "./client";
 import { getEntries, getInfluences } from "@/lib/data";
 import { avgCharacterScore, computeFidelity } from "@/lib/fidelity";
 import { effectiveTraits } from "@/lib/traits";
@@ -102,7 +102,7 @@ export async function generateConclusion(ctx: AiCtx, monthId: string): Promise<v
     });
     await done({ ai_conclusion_status: "done", ai_conclusion: out.conclusion, ai_conclusion_verdict: out.verdict });
   } catch (e) {
-    await done({ ai_conclusion_status: e instanceof AiSkipped ? "skipped" : "failed" });
+    await done({ ai_conclusion_status: skipStatus(e) });
   }
 }
 

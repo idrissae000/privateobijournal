@@ -77,7 +77,7 @@ export function TraitsPanel({ influence, aiOn }: { influence: Influence; aiOn: b
         </p>
       )}
 
-      {(accepted.length > 0 || status === "done" || status === "none" || status === "suggested") && (
+      {(accepted.length > 0 || status === "done" || status === "none" || status === "declined" || status === "suggested") && (
         <div className="space-y-2">
           <ThemeEditor {...traitEditor} label="Your traits" value={accepted} onChange={setAccepted} placeholder="add a trait…" />
           {dirty && (

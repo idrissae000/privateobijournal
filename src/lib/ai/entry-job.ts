@@ -1,6 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { type AiCtx, AiSkipped, asArr, asInt, asObj, asStr, asText, callJson, hashOf } from "./client";
+import { type AiCtx, skipStatus, asArr, asInt, asObj, asStr, asText, callJson, hashOf } from "./client";
 import { insightModel } from "./config";
 import { effectiveTraits } from "@/lib/traits";
 import { monthLabel } from "@/lib/dates";
@@ -192,7 +192,7 @@ export async function analyzeEntry(ctx: AiCtx, entryId: string, hash: string): P
   } catch (e) {
     await supabase
       .from("entries")
-      .update({ insight_status: e instanceof AiSkipped ? "skipped" : "failed" })
+      .update({ insight_status: skipStatus(e) })
       .eq("id", entryId).eq("insight_hash", hash);
   }
 }

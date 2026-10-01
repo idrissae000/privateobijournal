@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createPortal } from "react-dom";
+import { useScrollLock } from "@/lib/useScrollLock";
 
 type Result = { thumb: string; full: string; title: string; source: string };
 
@@ -21,6 +22,7 @@ export function ImageSearchSheet({
   const [busy, setBusy] = useState<"search" | "import" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notConfigured, setNotConfigured] = useState(false);
+  useScrollLock(true);
   const [limitHit, setLimitHit] = useState<number | null>(null);
   const [remaining, setRemaining] = useState<number | null>(null);
 
@@ -83,7 +85,7 @@ export function ImageSearchSheet({
     >
       <div
         onClick={(e) => e.stopPropagation()} onPaste={onPaste}
-        className="safe-bottom paper-card mx-auto flex max-h-[92dvh] w-full max-w-xl flex-col gap-3 overflow-y-auto rounded-t-xl p-5"
+        className="safe-bottom paper-card mx-auto flex max-h-[92dvh] w-full max-w-xl flex-col gap-3 overflow-y-auto overscroll-contain rounded-t-xl p-5"
       >
         <div className="flex items-center justify-between">
           <h2 className="font-hand text-3xl">Find a photo</h2>

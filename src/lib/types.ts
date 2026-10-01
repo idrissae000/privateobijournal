@@ -50,7 +50,7 @@ export type Influence = {
   traits: string[];
   suggested_traits: string[];
   traits_confidence: "high" | "medium" | "low" | null;
-  traits_status: "none" | "pending" | "suggested" | "done" | "failed" | "skipped";
+  traits_status: "none" | "pending" | "suggested" | "done" | "failed" | "skipped" | "declined";
 };
 
 export type Entry = {
