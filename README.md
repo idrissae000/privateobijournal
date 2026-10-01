@@ -63,8 +63,8 @@ The app reflects back at you automatically, in the background, as part of normal
 | Month-end conclusion alongside your own reflection | when you seal a month |
 | Per-influence fidelity ("who I actually lived up to") | computed from the daily scores |
 | Character sheet + Arc Watch (same theme, months apart, different stance) | `/archetype`, rewritten when your journal changed (at most every 5 minutes) |
-| Foreshadowing (entries that sound like an influence before you named it) | every 3 days, when you open Today |
-| Accuracy pass (duplicate characters, theme variants, shaky facts) | weekly, when you open Today, or on demand at `/admin`. It only raises flags |
+| Foreshadowing (entries that sound like an influence before you named it) | monthly, when you open Today |
+| Accuracy pass (duplicate characters, theme variants, shaky facts) | monthly, when you open Today, or on demand at `/admin`. It only raises flags |
 | Drift / gap notes | computed on Today, dismissible, no notifications |
 
 Where to find things: the **You** tab has seven sections: Character sheet, Then vs. now (Arc Watch), Foreshadowing,

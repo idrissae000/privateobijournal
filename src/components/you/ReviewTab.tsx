@@ -45,8 +45,8 @@ export async function ReviewTab({ supabase, today }: { supabase: SupabaseClient;
     ["Model", insightModel()],
     ["AI calls today", `${used} of ${dailyCallLimit()} (daily cap)`],
     ["Character sheet", archetype ? `${archetype.status}, last written ${ago(archetype.generated_at)}` : "not written yet"],
-    ["Accuracy pass (every 2 weeks)", review ? `${review.status}, last run ${ago(review.generated_at)}` : "hasn't run yet"],
-    ["Foreshadowing check (weekly)", foreshadow ? `${foreshadow.status}, last run ${ago(foreshadow.generated_at)}` : "hasn't run yet"],
+    ["Accuracy pass (monthly)", review ? `${review.status}, last run ${ago(review.generated_at)}` : "hasn't run yet"],
+    ["Foreshadowing check (monthly)", foreshadow ? `${foreshadow.status}, last run ${ago(foreshadow.generated_at)}` : "hasn't run yet"],
   ];
 
   return (

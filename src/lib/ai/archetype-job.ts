@@ -25,8 +25,8 @@ export type ArchetypeContent = {
   model?: string;
 };
 
-/** The character sheet reads the whole journal, so it refreshes at most once a day (the first one is immediate). */
-const MIN_GAP_MS = 24 * 60 * 60_000;
+/** The character sheet reads the whole journal, so it refreshes at most once every 3 days (the first one is immediate). */
+const MIN_GAP_MS = 3 * 24 * 60 * 60_000;
 
 const SCHEMA = {
   type: "object",

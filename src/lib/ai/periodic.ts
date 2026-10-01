@@ -9,18 +9,18 @@ const DAY = 86_400_000;
 
 /**
  * Lazy "cron": whenever the home page renders, quietly run whichever scheduled passes are due. Deliberately rare:
- *  - accuracy review: at most every 14 days, and only if the structure being reviewed actually changed
- *  - foreshadowing: at most every 7 days, and only if there are new written pages
+ *  - accuracy review: at most once a month, and only if the structure being reviewed actually changed
+ *  - foreshadowing: at most once a month, and only if there are new written pages
  * No scheduler or service key is needed, and nothing runs when the app isn't being used.
  * Call from `after()` so it never slows the page down.
  */
 export async function runPeriodicJobs(ctx: AiCtx): Promise<void> {
   const { supabase } = ctx;
   if (await hasReviewData(supabase)) {
-    if (await claimIfDue(supabase, "review", { intervalMs: 14 * DAY, fingerprint: await reviewFingerprint(supabase) })) await runReview(ctx);
+    if (await claimIfDue(supabase, "review", { intervalMs: 30 * DAY, fingerprint: await reviewFingerprint(supabase) })) await runReview(ctx);
   }
   if (await hasForeshadowData(supabase)) {
-    if (await claimIfDue(supabase, "foreshadow", { intervalMs: 7 * DAY, fingerprint: await foreshadowFingerprint(supabase) })) await runForeshadow(ctx);
+    if (await claimIfDue(supabase, "foreshadow", { intervalMs: 30 * DAY, fingerprint: await foreshadowFingerprint(supabase) })) await runForeshadow(ctx);
   }
 }
 
