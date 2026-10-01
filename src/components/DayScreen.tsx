@@ -109,7 +109,7 @@ export async function DayScreen({ date }: { date: string }) {
         )}
       </section>
 
-      {entry && <EntryInsight entry={entry} influences={influences} />}
+      {entry && <EntryInsight entry={entry} influences={library} />}
 
       {gallery.length > 0 && (
         <Collage

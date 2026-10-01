@@ -44,13 +44,20 @@ const SCHEMA = {
   additionalProperties: false,
 };
 
-const SYSTEM = `Task: read ONE day's journal entry against the influences of the user's current month and their traits.
+/** Most characters from other months that are offered alongside the current month's (keeps each read cheap). */
+const MAX_OTHER_INFLUENCES = 30;
+
+const SYSTEM = `Task: read ONE day's journal entry against the user's influences (characters, people, ideas) and their traits.
+"influences" holds the current month's influences (in_current_month=true) plus, in compact form, influences from the user's other months
+(in_current_month=false). Any of them can show up in a day. Only report the ones the entry actually shows; leave the rest out as applicable=false.
+For influences from other months be strict: require clear evidence in the entry that matches their traits, and never stretch to include one.
 
 Scoring ("in-character" fidelity):
 - For each influence in "influences", give a 0-10 score for how closely what the entry describes (actions, choices, mindset, how they handled things)
   matched that influence's traits. This is fidelity to the traits, NOT how good the day was: a hard day handled the way the character would can score high,
   a great day that ignored the traits can score low. 0 = acted against the traits, 5 = mixed or only loosely connected, 10 = clearly embodied.
-- If the entry gives no real evidence about an influence, set applicable=false (and score 0) instead of guessing 5.
+- If the entry gives no real evidence about an influence, set applicable=false (and score 0) instead of guessing 5. Most influences will not apply on a given day, and that is expected: the user is only shown the ones that fit.
+- Keep "note" empty ("") for any influence with applicable=false.
 - If an influence has no traits listed, judge from what you know of it plus the user's own words, and stay conservative.
 - "character_score" is the overall in-character-ness of the day across the applicable influences; weigh the ones in tagged_influence_ids most heavily.
   If none are applicable, set scorable=false and character_score=0.
@@ -66,8 +73,23 @@ No praise inflation, no generic encouragement, don't repeat the wording of earli
 type Eff = ReturnType<typeof effectiveTraits>;
 const forPrompt = (i: Influence) => {
   const e: Eff = effectiveTraits(i);
-  return { id: i.id, name: i.name, from: i.source_note, why: i.why_it_resonates, themes: i.themes, traits: e.traits, traits_source: e.source };
+  return { id: i.id, in_current_month: true, name: i.name, from: i.source_note, why: i.why_it_resonates, themes: i.themes, traits: e.traits, traits_source: e.source };
 };
+const compactForPrompt = (i: Influence) => ({ id: i.id, in_current_month: false, name: i.name, traits: effectiveTraits(i).traits });
+
+/** Characters from other months worth considering: have traits to judge by, one per name (newest wins), capped. */
+function otherInfluences(all: Influence[], monthId: string, current: Influence[]): Influence[] {
+  const seen = new Set(current.map((i) => i.name.trim().toLowerCase()));
+  const out: Influence[] = [];
+  for (const i of [...all].reverse()) {
+    const key = i.name.trim().toLowerCase();
+    if (i.month_id === monthId || seen.has(key) || !effectiveTraits(i).traits.length) continue;
+    seen.add(key);
+    out.push(i);
+    if (out.length >= MAX_OTHER_INFLUENCES) break;
+  }
+  return out;
+}
 
 async function loadEntry(supabase: SupabaseClient, entryId: string) {
   const { data: entry } = await supabase
@@ -76,9 +98,10 @@ async function loadEntry(supabase: SupabaseClient, entryId: string) {
     .eq("id", entryId)
     .maybeSingle();
   if (!entry) return null;
-  const { data: influences } = await supabase
-    .from("influences").select("*").eq("month_id", entry.month_id).order("date_added").order("created_at");
-  return { entry, influences: (influences ?? []) as Influence[] };
+  const { data } = await supabase.from("influences").select("*").order("date_added").order("created_at");
+  const all = (data ?? []) as Influence[];
+  const influences = all.filter((i) => i.month_id === entry.month_id);
+  return { entry, influences, others: otherInfluences(all, entry.month_id, influences) };
 }
 
 /**
@@ -88,12 +111,13 @@ async function loadEntry(supabase: SupabaseClient, entryId: string) {
 export async function queueEntryAnalysis(supabase: SupabaseClient, entryId: string): Promise<string | null> {
   const loaded = await loadEntry(supabase, entryId);
   if (!loaded) return null;
-  const { entry, influences } = loaded;
+  const { entry, influences, others } = loaded;
   const tags = (entry.entry_influences as { influence_id: string }[]).map((t) => t.influence_id).sort();
 
   const hash = hashOf({
     n: entry.note ?? "", r: entry.rating, w: entry.weigh_in, t: tags,
     i: influences.map((i) => [i.id, i.name, effectiveTraits(i).traits]),
+    o: others.map((i) => [i.id, i.name, effectiveTraits(i).traits]),
   });
   if (entry.insight_hash === hash && (entry.insight_status === "done" || entry.insight_status === "pending")) return null;
 
@@ -124,7 +148,7 @@ export async function analyzeEntry(ctx: AiCtx, entryId: string, hash: string): P
   const { supabase } = ctx;
   const loaded = await loadEntry(supabase, entryId);
   if (!loaded) return;
-  const { entry, influences } = loaded;
+  const { entry, influences, others } = loaded;
 
   const [{ data: recent }, { data: monthRatings }] = await Promise.all([
     supabase
@@ -136,7 +160,7 @@ export async function analyzeEntry(ctx: AiCtx, entryId: string, hash: string): P
   ]);
   const ratings = (monthRatings ?? []).map((r) => r.rating as number);
   const avg = ratings.length ? Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 10) / 10 : null;
-  const ids = new Set(influences.map((i) => i.id));
+  const ids = new Set([...influences, ...others].map((i) => i.id));
   const tagged = (entry.entry_influences as { influence_id: string }[]).map((t) => t.influence_id);
 
   try {
@@ -149,7 +173,7 @@ export async function analyzeEntry(ctx: AiCtx, entryId: string, hash: string): P
         entry: { rating: entry.rating, note: entry.note, weigh_in: entry.weigh_in },
         tagged_influence_ids: tagged,
         month_average_rating: avg,
-        influences: influences.map(forPrompt),
+        influences: [...influences.map(forPrompt), ...others.map(compactForPrompt)],
         recent_days: (recent ?? []).reverse(),
       },
       task: "Read this entry now.",
@@ -158,7 +182,7 @@ export async function analyzeEntry(ctx: AiCtx, entryId: string, hash: string): P
       maxTokens: 6000,
       parse: (raw) => {
         const o = asObj(raw);
-        const per = asArr(o.per_influence, 20).flatMap((p) => {
+        const per = asArr(o.per_influence, 60).flatMap((p) => {
           const x = asObj(p);
           const id = asStr(x.influence_id, 64);
           const score = asInt(x.score, 0, 10);
