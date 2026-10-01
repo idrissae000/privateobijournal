@@ -3,6 +3,7 @@ import { EntryForm } from "@/components/EntryForm";
 import { EntryPanel } from "@/components/EntryPanel";
 import { AddInfluenceButton } from "@/components/AddInfluence";
 import { Collage } from "@/components/Collage";
+import { EntryInsight } from "@/components/EntryInsight";
 import { Heading, Stamp, Tag, Tape } from "@/components/scrap";
 import {
   getAllInfluences, getEntryByDate, getInfluences, getPhotosForEntries, getToday, isGalleryPhoto,
@@ -91,6 +92,8 @@ export async function DayScreen({ date }: { date: string }) {
           />
         )}
       </section>
+
+      {entry && <EntryInsight entry={entry} influences={influences} />}
 
       {gallery.length > 0 && (
         <Collage

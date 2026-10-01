@@ -3,6 +3,9 @@ import { TzCookie } from "@/components/TzCookie";
 import { getTz, requireUser } from "@/lib/data";
 import { todayInTz, dateYm } from "@/lib/dates";
 
+// Background AI jobs (scoring, reflections, reviews) run after the response, inside this window.
+export const maxDuration = 60;
+
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   await requireUser();
   const tz = await getTz();

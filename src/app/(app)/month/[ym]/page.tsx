@@ -18,6 +18,7 @@ import {
 } from "@/lib/dates";
 import { computeStats, fmt1 } from "@/lib/stats";
 import { collectThemes, sharedThemes } from "@/lib/themes";
+import { aiConfigured } from "@/lib/ai/config";
 import type { Month } from "@/lib/types";
 
 export default async function MonthPage({ params }: PageProps<"/month/[ym]">) {
@@ -120,7 +121,7 @@ export default async function MonthPage({ params }: PageProps<"/month/[ym]">) {
         <div className="space-y-4">
           <Heading>{retro ? "Who shaped it" : "Influences"}</Heading>
           {influences.length ? (
-            <InfluenceBoard influences={influences} urls={urls} detailed={retro} themeSuggestions={allThemes} />
+            <InfluenceBoard influences={influences} urls={urls} detailed={retro} themeSuggestions={allThemes} aiOn={aiConfigured()} />
           ) : (
             <Empty>{retro ? "No influences here yet." : "Blank so far. Add whoever is on your mind."}</Empty>
           )}

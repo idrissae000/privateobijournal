@@ -1,3 +1,12 @@
+export type JobStatus = "none" | "pending" | "done" | "failed" | "skipped";
+export type ConclusionVerdict = "stayed_true" | "partly" | "drifted" | "not_enough_data";
+
+export type EntryAnalysis = {
+  topics?: { topic: string; stance: string; evidence: string }[];
+  tone?: string[];
+  model?: string;
+};
+
 export type Layout = {
   /** width / height of the original photo */
   ar: number;
@@ -23,6 +32,10 @@ export type Month = {
   is_retrospective: boolean;
   sealed_at: string | null;
   themes: string[];
+  ai_conclusion: string | null;
+  ai_conclusion_verdict: ConclusionVerdict | null;
+  ai_conclusion_status: JobStatus;
+  ai_conclusion_at: string | null;
 };
 
 export type Influence = {
@@ -34,6 +47,10 @@ export type Influence = {
   date_added: string;
   source_note: string | null;
   themes: string[];
+  traits: string[];
+  suggested_traits: string[];
+  traits_confidence: "high" | "medium" | "low" | null;
+  traits_status: "none" | "pending" | "suggested" | "done" | "failed" | "skipped";
 };
 
 export type Entry = {
@@ -44,6 +61,12 @@ export type Entry = {
   note: string | null;
   weigh_in: number | null;
   influence_ids: string[];
+  character_score: number | null;
+  insight: string | null;
+  insight_status: JobStatus;
+  insight_at: string | null;
+  analysis: EntryAnalysis | null;
+  scores: { influence_id: string; score: number; note: string | null }[];
 };
 
 export type Photo = {

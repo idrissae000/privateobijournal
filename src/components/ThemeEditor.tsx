@@ -5,12 +5,19 @@ import { MAX_THEMES, MAX_THEME_LENGTH, normalizeThemes } from "@/lib/themes";
 
 /** Chip editor for free-form themes. Enter / comma adds; tap a suggestion to reuse an existing theme. */
 export function ThemeEditor({
-  value, onChange, suggestions = [], label = "Themes",
+  value, onChange, suggestions = [], label = "Themes", prefix = "#", placeholder = "add a theme…",
+  normalize = normalizeThemes, max = MAX_THEMES, maxLength = MAX_THEME_LENGTH,
 }: {
   value: string[];
   onChange: (next: string[]) => void;
   suggestions?: string[];
   label?: string;
+  /** shown before each chip ("#" for themes, "" for traits) */
+  prefix?: string;
+  placeholder?: string;
+  normalize?: (input: unknown) => string[];
+  max?: number;
+  maxLength?: number;
 }) {
   const [draft, setDraft] = useState("");
   const have = new Set(value.map((v) => v.toLowerCase()));
@@ -19,7 +26,7 @@ export function ThemeEditor({
     .slice(0, 8);
 
   function add(raw: string) {
-    const next = normalizeThemes([...value, ...raw.split(",")]);
+    const next = normalize([...value, ...raw.split(",")]);
     if (next.length !== value.length) onChange(next);
     setDraft("");
   }
@@ -30,17 +37,17 @@ export function ThemeEditor({
       <div className="flex flex-wrap items-center gap-2">
         {value.map((t) => (
           <span key={t} className="label-tag inline-flex items-center gap-1.5">
-            #{t}
+            {prefix}{t}
             <button type="button" aria-label={`Remove ${t}`} className="px-0.5 text-ink-soft" onClick={() => onChange(value.filter((x) => x !== t))}>×</button>
           </span>
         ))}
-        {value.length < MAX_THEMES && (
+        {value.length < max && (
           <input
-            className="input !w-auto min-w-28 flex-1 !py-1 !text-sm" placeholder="add a theme…" value={draft} maxLength={MAX_THEME_LENGTH}
+            className="input !w-auto min-w-28 flex-1 !py-1 !text-sm" placeholder={placeholder} value={draft} maxLength={maxLength}
             onChange={(e) => (e.target.value.includes(",") ? add(e.target.value) : setDraft(e.target.value))}
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (draft.trim()) add(draft); } }}
             onBlur={() => draft.trim() && add(draft)}
-            aria-label="Add a theme"
+            aria-label={placeholder}
           />
         )}
       </div>

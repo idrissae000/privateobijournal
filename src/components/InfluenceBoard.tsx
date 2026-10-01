@@ -4,7 +4,9 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { deleteInfluence, updateInfluence } from "@/app/actions";
 import { ImageSlot } from "@/components/ImageSlot";
+import { InsightPoller } from "@/components/InsightPoller";
 import { ThemeEditor } from "@/components/ThemeEditor";
+import { TraitsPanel } from "@/components/TraitsPanel";
 import { Frame, Tag } from "@/components/scrap";
 import { hash } from "@/lib/collage";
 import { formatShortDate } from "@/lib/dates";
@@ -17,23 +19,28 @@ type Props = {
   detailed?: boolean;
   /** existing themes, offered as quick picks in the editor */
   themeSuggestions?: string[];
+  /** AI insights are switched on for this deployment */
+  aiOn?: boolean;
 };
 
 /** The evolving mood board: every influence added this month as a taped polaroid. */
-export function InfluenceBoard({ influences, urls, detailed = false, themeSuggestions = [] }: Props) {
-  const [editing, setEditing] = useState<Influence | null>(null);
+export function InfluenceBoard({ influences, urls, detailed = false, themeSuggestions = [], aiOn = false }: Props) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  // always the live row, so a refresh (e.g. traits arriving) shows up inside an open editor
+  const editing = influences.find((i) => i.id === editingId) ?? null;
 
   if (!influences.length) return null;
 
   return (
     <>
+      <InsightPoller active={influences.some((i) => i.traits_status === "pending")} />
       <ul className={detailed ? "space-y-8" : "grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3"}>
         {influences.map((inf) => {
           const rot = (hash(inf.id) - 0.5) * 9;
           return (
             <li key={inf.id} className={detailed ? "flex gap-4" : ""}>
               <button
-                type="button" onClick={() => setEditing(inf)} aria-label={`Edit ${inf.name}`}
+                type="button" onClick={() => setEditingId(inf.id)} aria-label={`Edit ${inf.name}`}
                 className={`block text-left ${detailed ? "w-36 shrink-0" : "w-full"}`}
                 style={{ transform: `rotate(${rot}deg)` }}
               >
@@ -47,6 +54,9 @@ export function InfluenceBoard({ influences, urls, detailed = false, themeSugges
                 {detailed && <p className="font-hand text-3xl leading-none">{inf.name}</p>}
                 {inf.source_note && <p className="font-type text-xs text-ink-soft">{inf.source_note}</p>}
                 <p className="font-hand text-lg leading-none text-stamp/80">added {formatShortDate(inf.date_added)}</p>
+                {(inf.traits ?? []).length > 0 && <p className="font-type text-[11px] text-ink-soft">{inf.traits.join(" · ")}</p>}
+                {inf.traits_status === "suggested" && <p className="font-hand text-lg leading-none text-stamp">✨ traits ready to review</p>}
+                {inf.traits_status === "pending" && <p className="font-hand animate-pulse text-lg leading-none text-ink-soft">thinking…</p>}
                 {detailed && (inf.themes ?? []).length > 0 && (
                   <div className="mt-1.5 flex flex-wrap gap-1.5">{inf.themes.map((t) => <Tag key={t}>#{t}</Tag>)}</div>
                 )}
@@ -60,12 +70,12 @@ export function InfluenceBoard({ influences, urls, detailed = false, themeSugges
           );
         })}
       </ul>
-      {editing && <InfluenceEditor key={editing.id} influence={editing} url={editing.image_key ? urls[editing.image_key] : null} themeSuggestions={themeSuggestions} onClose={() => setEditing(null)} />}
+      {editing && <InfluenceEditor key={editing.id} influence={editing} url={editing.image_key ? urls[editing.image_key] : null} themeSuggestions={themeSuggestions} aiOn={aiOn} onClose={() => setEditingId(null)} />}
     </>
   );
 }
 
-function InfluenceEditor({ influence, url, themeSuggestions, onClose }: { influence: Influence; url: string | null; themeSuggestions: string[]; onClose: () => void }) {
+function InfluenceEditor({ influence, url, themeSuggestions, aiOn, onClose }: { influence: Influence; url: string | null; themeSuggestions: string[]; aiOn: boolean; onClose: () => void }) {
   const router = useRouter();
   const [name, setName] = useState(influence.name);
   const [source, setSource] = useState(influence.source_note ?? "");
@@ -99,10 +109,11 @@ function InfluenceEditor({ influence, url, themeSuggestions, onClose }: { influe
 
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-black/40" onClick={onClose}>
-      <form
-        onSubmit={save} onClick={(e) => e.stopPropagation()}
-        className="safe-bottom paper-card mx-auto max-h-[92dvh] w-full max-w-xl space-y-4 overflow-y-auto rounded-t-xl p-5"
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="safe-bottom paper-card mx-auto max-h-[92dvh] w-full max-w-xl space-y-5 overflow-y-auto rounded-t-xl p-5"
       >
+      <form onSubmit={save} className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="font-hand text-3xl">{influence.name}</h2>
           <button type="button" onClick={onClose} className="font-type px-2 py-2 text-sm underline">close</button>
@@ -127,6 +138,9 @@ function InfluenceEditor({ influence, url, themeSuggestions, onClose }: { influe
           <button type="button" className="btn-ghost text-red-800" onClick={remove} disabled={pending}>Remove</button>
         </div>
       </form>
+      <TraitsPanel key={influence.id} influence={influence} aiOn={aiOn} />
+      </div>
     </div>
   );
 }
+

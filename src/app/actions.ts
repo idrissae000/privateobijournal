@@ -1,10 +1,21 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getOrCreateMonth } from "@/lib/data";
+import { getOrCreateMonth, getTz } from "@/lib/data";
+import { aiConfigured } from "@/lib/ai/config";
+import { type AiCtx, callJson, failureReason } from "@/lib/ai/client";
+import { analyzeEntry, queueEntryAnalysis } from "@/lib/ai/entry-job";
+import { suggestTraits } from "@/lib/ai/traits-job";
+import { generateConclusion, queueConclusion } from "@/lib/ai/conclusion-job";
+import { generateArchetype } from "@/lib/ai/archetype-job";
+import { claimIfDue } from "@/lib/ai/reports";
+import { runForeshadow, hasForeshadowData } from "@/lib/ai/foreshadow-job";
+import { runReview } from "@/lib/ai/review-job";
+import { normalizeTraits } from "@/lib/traits";
 import { deleteObject, isOwnKey } from "@/lib/r2";
-import { isValidDate } from "@/lib/dates";
+import { isValidDate, todayInTz } from "@/lib/dates";
 import { normalizeThemes } from "@/lib/themes";
 import type { Layout } from "@/lib/types";
 
@@ -18,6 +29,11 @@ async function authed() {
 }
 
 const refresh = () => revalidatePath("/", "layout");
+
+/** Context for background AI jobs. Built before `after()` so request cookies are still readable. */
+async function aiCtx(supabase: Awaited<ReturnType<typeof createClient>>): Promise<AiCtx> {
+  return { supabase, day: todayInTz(await getTz()) };
+}
 
 const clean = (s: unknown, max = 5000) => (typeof s === "string" ? s.trim().slice(0, max) : "");
 const orNull = (s: string) => (s === "" ? null : s);
@@ -65,8 +81,29 @@ export async function saveEntry(input: {
       .insert(ids.map((influence_id) => ({ entry_id: entryId, influence_id })));
     if (e2) throw e2;
   }
+
+  // Quietly read the entry in the background (score + reflection). The page doesn't wait for it.
+  if (aiConfigured()) {
+    const hash = await queueEntryAnalysis(supabase, entryId);
+    if (hash) {
+      const ctx = await aiCtx(supabase);
+      after(() => analyzeEntry(ctx, entryId, hash));
+    }
+  }
   refresh();
   return entryId;
+}
+
+export async function retryEntryInsight(entryId: string) {
+  const { supabase } = await authed();
+  if (!aiConfigured()) return;
+  await supabase.from("entries").update({ insight_hash: null, insight_status: "none" }).eq("id", entryId);
+  const hash = await queueEntryAnalysis(supabase, entryId);
+  if (hash) {
+    const ctx = await aiCtx(supabase);
+    after(() => analyzeEntry(ctx, entryId, hash));
+  }
+  refresh();
 }
 
 export async function addPhotos(date: string, items: { key: string; ar: number; progress?: boolean }[]) {
@@ -163,10 +200,17 @@ export async function addInfluence(input: {
       why_it_resonates: orNull(clean(input.why)),
       source_note: orNull(clean(input.sourceNote, 300)),
       ...(date ? { date_added: date } : {}),
+      ...(aiConfigured() ? { traits_status: "pending" } : {}),
     })
     .select("id")
     .single();
   if (error) throw error;
+  // Suggest 3-5 core traits in the background; the user keeps, edits or discards them.
+  if (aiConfigured()) {
+    const ctx = await aiCtx(supabase);
+    const id = data.id as string;
+    after(() => suggestTraits(ctx, id));
+  }
   refresh();
   return data.id as string;
 }
@@ -229,6 +273,25 @@ export async function sealMonth(id: string, title: string, reflection: string) {
     .update({ title: t, month_end_reflection: orNull(clean(reflection, 10000)), sealed_at: new Date().toISOString() })
     .eq("id", id);
   if (error) throw error;
+
+  // Alongside the user's own reflection, write the app's read on whether the month stayed true.
+  if (aiConfigured()) {
+    const { data: m } = await supabase.from("months").select("is_retrospective").eq("id", id).maybeSingle();
+    if (m && !m.is_retrospective) {
+      await queueConclusion(supabase, id);
+      const ctx = await aiCtx(supabase);
+      after(() => generateConclusion(ctx, id));
+    }
+  }
+  refresh();
+}
+
+export async function retryConclusion(monthId: string) {
+  const { supabase } = await authed();
+  if (!aiConfigured()) return;
+  await queueConclusion(supabase, monthId);
+  const ctx = await aiCtx(supabase);
+  after(() => generateConclusion(ctx, monthId));
   refresh();
 }
 
@@ -244,4 +307,106 @@ export async function changePassword(newPassword: string) {
   if (newPassword.length < 10) return { error: "Use at least 10 characters." };
   const { error } = await supabase.auth.updateUser({ password: newPassword });
   return error ? { error: error.message } : {};
+}
+
+// ---------- Traits ----------
+
+/** Keep (optionally edited) suggested traits: they become what entries are scored against. */
+export async function acceptTraits(id: string, traits: string[]) {
+  const { supabase } = await authed();
+  const clean = normalizeTraits(traits);
+  const { error } = await supabase
+    .from("influences")
+    .update({ traits: clean, suggested_traits: [], traits_status: clean.length ? "done" : "none" })
+    .eq("id", id);
+  if (error) throw error;
+  refresh();
+}
+
+/** Discard the suggestion without touching accepted traits. */
+export async function discardTraits(id: string) {
+  const { supabase } = await authed();
+  const { data } = await supabase.from("influences").select("traits").eq("id", id).maybeSingle();
+  const { error } = await supabase
+    .from("influences")
+    .update({ suggested_traits: [], traits_status: (data?.traits as string[] | undefined)?.length ? "done" : "none" })
+    .eq("id", id);
+  if (error) throw error;
+  refresh();
+}
+
+/** Ask for fresh suggestions (e.g. after the first attempt failed, or the "why" changed). */
+export async function requestTraits(id: string) {
+  const { supabase } = await authed();
+  if (!aiConfigured()) return;
+  await supabase.from("influences").update({ traits_status: "pending" }).eq("id", id);
+  const ctx = await aiCtx(supabase);
+  after(() => suggestTraits(ctx, id));
+  refresh();
+}
+
+// ---------- Admin: accuracy pass, flags, connection test ----------
+
+export async function runReviewNow() {
+  const { supabase } = await authed();
+  if (!aiConfigured()) return { started: false };
+  const ok = await claimIfDue(supabase, "review", { intervalMs: 0, force: true });
+  if (ok) {
+    const ctx = await aiCtx(supabase);
+    after(() => runReview(ctx));
+  }
+  refresh();
+  return { started: ok };
+}
+
+export async function runForeshadowNow() {
+  const { supabase } = await authed();
+  if (!aiConfigured() || !(await hasForeshadowData(supabase))) return { started: false };
+  const ok = await claimIfDue(supabase, "foreshadow", { intervalMs: 0, force: true });
+  if (ok) {
+    const ctx = await aiCtx(supabase);
+    after(() => runForeshadow(ctx));
+  }
+  refresh();
+  return { started: ok };
+}
+
+export async function regenerateArchetypeNow() {
+  const { supabase } = await authed();
+  if (!aiConfigured()) return { started: false };
+  const ok = await claimIfDue(supabase, "archetype", { intervalMs: 0, force: true });
+  if (ok) {
+    const ctx = await aiCtx(supabase);
+    after(() => generateArchetype(ctx));
+  }
+  refresh();
+  return { started: ok };
+}
+
+export async function setFlagStatus(id: string, status: "dismissed" | "resolved" | "open") {
+  const { supabase } = await authed();
+  const { error } = await supabase.from("ai_flags").update({ status }).eq("id", id);
+  if (error) throw error;
+  refresh();
+}
+
+/** One tiny round trip so you can tell whether the key/model are set up right. */
+export async function testAiConnection(): Promise<{ ok: boolean; message: string }> {
+  const { supabase } = await authed();
+  if (!aiConfigured()) return { ok: false, message: "ANTHROPIC_API_KEY isn't set on this deployment." };
+  try {
+    const ctx = await aiCtx(supabase);
+    await callJson(ctx, {
+      system: "Task: reply with ok=true.",
+      data: { ping: true },
+      task: "Reply now.",
+      schema: { type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"], additionalProperties: false },
+      effort: "low",
+      maxTokens: 2000,
+      parse: (raw) => (raw as { ok?: boolean }).ok === true,
+    });
+    return { ok: true, message: "Connected. The Claude API answered." };
+  } catch (e) {
+    return { ok: false, message: `Couldn't connect: ${failureReason(e)}.` };
+  }
 }

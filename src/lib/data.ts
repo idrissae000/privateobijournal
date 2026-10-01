@@ -55,28 +55,38 @@ export async function getOrCreateMonth(supabase: Client, year: number, month: nu
   return data as Month;
 }
 
-type EntryRow = Omit<Entry, "influence_ids"> & { entry_influences: { influence_id: string }[] };
+const ENTRY_COLS =
+  "id,date,month_id,rating,note,weigh_in,character_score,insight,insight_status,insight_at,analysis," +
+  "entry_influences(influence_id),entry_influence_scores(influence_id,score,note)";
 
-const toEntry = (r: EntryRow): Entry => ({
+type EntryRow = Omit<Entry, "influence_ids" | "scores"> & {
+  entry_influences: { influence_id: string }[];
+  entry_influence_scores: { influence_id: string; score: number; note: string | null }[];
+};
+
+export const toEntry = (r: EntryRow): Entry => ({
   id: r.id, date: r.date, month_id: r.month_id, rating: r.rating, note: r.note, weigh_in: r.weigh_in,
+  character_score: r.character_score ?? null,
+  insight: r.insight ?? null,
+  insight_status: r.insight_status ?? "none",
+  insight_at: r.insight_at ?? null,
+  analysis: r.analysis ?? null,
   influence_ids: (r.entry_influences ?? []).map((x) => x.influence_id),
+  scores: r.entry_influence_scores ?? [],
 });
 
 export async function getEntries(supabase: Client, monthId: string): Promise<Entry[]> {
-  const { data } = await supabase
-    .from("entries")
-    .select("id,date,month_id,rating,note,weigh_in,entry_influences(influence_id)")
-    .eq("month_id", monthId)
-    .order("date");
+  const { data } = await supabase.from("entries").select(ENTRY_COLS).eq("month_id", monthId).order("date");
+  return ((data ?? []) as unknown as EntryRow[]).map(toEntry);
+}
+
+export async function getAllEntries(supabase: Client): Promise<Entry[]> {
+  const { data } = await supabase.from("entries").select(ENTRY_COLS).order("date");
   return ((data ?? []) as unknown as EntryRow[]).map(toEntry);
 }
 
 export async function getEntryByDate(supabase: Client, date: string): Promise<Entry | null> {
-  const { data } = await supabase
-    .from("entries")
-    .select("id,date,month_id,rating,note,weigh_in,entry_influences(influence_id)")
-    .eq("date", date)
-    .maybeSingle();
+  const { data } = await supabase.from("entries").select(ENTRY_COLS).eq("date", date).maybeSingle();
   return data ? toEntry(data as unknown as EntryRow) : null;
 }
 
