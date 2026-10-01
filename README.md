@@ -16,7 +16,7 @@ Copy `.env.example` to `.env.local` (local) and add the same names in Vercel →
 | `R2_BUCKET` | `journal-photos` |
 | `IMAGE_SEARCH_MONTHLY_LIMIT` | *Optional.* Max web image searches per calendar month (default 800). Enforced in the database |
 | `ANTHROPIC_API_KEY` | *Optional.* Turns on the insight layer (see below). Without it everything else works and the insight UI stays quiet |
-| `INSIGHT_MODEL` | *Optional.* Defaults to `claude-opus-5-5`. `claude-sonnet-5-5` costs roughly half |
+| `INSIGHT_MODEL` | *Optional.* Defaults to `claude-sonnet-5`. Use `claude-opus-5-5` for the most capable reading |
 | `INSIGHT_DAILY_CALL_LIMIT` | *Optional.* Max Claude calls per day (default 60), enforced in the database |
 | `BRAVE_SEARCH_API_KEY` | *Optional.* Turns on web image search (Brave Search API). Without it, pasting an image link still works |
 
@@ -68,7 +68,7 @@ The app reflects back at you automatically, in the background, as part of normal
 
 Rules it follows: AI output is stored in its own columns/tables and never overwrites what you wrote; every job is
 skipped quietly if there's no key, the daily cap is hit, or the model declines; jobs use `after()` so saving never waits
-on Claude. Requests use structured JSON output, effort tuned per job, and the server-side refusal fallback. Your
+on Claude. Requests use structured JSON output, effort tuned per job, and (on models that support it) the server-side refusal fallback. Your
 journal text is sent to the Claude API to do this.
 
 ## Privacy rules
